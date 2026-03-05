@@ -1,0 +1,38 @@
+.dashboard {
+  padding: 0.5rem 0;
+}
+
+.dashboard h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+}
+
+.welcome {
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+}
+
+.section {
+  margin-bottom: 1.5rem;
+}
+
+.section h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.links {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.links li {
+  margin-bottom: 0.35rem;
+}
+
+.footer {
+  margin-top: 2rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}

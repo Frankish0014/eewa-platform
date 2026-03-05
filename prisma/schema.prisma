@@ -1,0 +1,252 @@
+// EEWA — Entrepreneur Empowerment Web Application
+// Production-ready, normalized schema. Run: npx prisma generate
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Roles (stored in DB for consistency with enums)
+enum Role {
+  Student
+  Mentor
+  Admin
+  InstitutionStaff
+  OpportunityProvider
+}
+
+// ─── User: all authenticated actors (students, mentors, admins, etc.)
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String?   // null if OAuth-only; bcrypt
+  role         Role
+  firstName    String
+  lastName     String
+  // GDPR: optional; encrypt at rest if present
+  phoneEnc     String?
+  institutionId String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLoginAt  DateTime?
+  // 2FA ready
+  twoFactorSecretEnc String?
+  twoFactorEnabled   Boolean   @default(false)
+
+  institution   Institution?  @relation(fields: [institutionId], references: [id])
+  projects      Project[]     @relation("ProjectOwner")
+  mentorProfile MentorProfile?
+  menteeAssignments MentorAssignment[] @relation("Mentee")
+  opportunitiesCreated Opportunity[]   @relation("OpportunityCreator")
+  opportunitiesVerified Opportunity[]  @relation("OpportunityVerifier")
+  sentMessages   Message[]    @relation("MessageSender")
+  receivedMessages Message[]  @relation("MessageReceiver")
+  conversationParticipations ConversationParticipant[] @relation("ConversationParticipantUser")
+  auditLogs      AuditLog[]
+
+  @@index([email])
+  @@index([role])
+  @@index([institutionId])
+}
+
+// ─── Institution (universities, hubs)
+model Institution {
+  id        String   @id @default(cuid())
+  name      String
+  code      String?  @unique
+  country   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users    User[]
+}
+
+// ─── Sector (e.g. Tech, Agriculture) — for mentor–project matching
+model Sector {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  projects        Project[]
+  mentorSectors   MentorSector[]
+  opportunities   Opportunity[]
+
+  @@index([name])
+}
+
+// ─── Project (student-owned; only owner can edit)
+model Project {
+  id          String   @id @default(cuid())
+  ownerId     String
+  sectorId    String
+  title       String
+  description String?  @db.Text
+  status      String   @default("DRAFT") // DRAFT | ACTIVE | COMPLETED | ARCHIVED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner     User      @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  sector    Sector    @relation(fields: [sectorId], references: [id])
+  milestones Milestone[]
+  mentorAssignments MentorAssignment[]
+
+  @@index([ownerId])
+  @@index([sectorId])
+  @@index([status])
+}
+
+// ─── Milestone (per project)
+model Milestone {
+  id          String    @id @default(cuid())
+  projectId   String
+  title       String
+  description String?   @db.Text
+  dueDate     DateTime?
+  completedAt DateTime?
+  orderIndex  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+// ─── Mentor profile: sectors they can mentor
+model MentorProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  bio       String?  @db.Text
+  maxMentees Int     @default(5)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sectors MentorSector[]
+  assignments MentorAssignment[] @relation("MentorAssignments")
+}
+
+model MentorSector {
+  id             String   @id @default(cuid())
+  mentorProfileId String
+  sectorId       String
+  createdAt      DateTime @default(now())
+
+  mentorProfile MentorProfile @relation(fields: [mentorProfileId], references: [id], onDelete: Cascade)
+  sector       Sector         @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+
+  @@unique([mentorProfileId, sectorId])
+  @@index([sectorId])
+}
+
+// ─── Mentor–mentee assignment (must match project sector)
+model MentorAssignment {
+  id          String    @id @default(cuid())
+  projectId   String
+  mentorId    String
+  menteeId    String
+  status      String    @default("ACTIVE") // ACTIVE | ENDED
+  assignedAt  DateTime  @default(now())
+  endedAt     DateTime?
+
+  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mentor   MentorProfile @relation("MentorAssignments", fields: [mentorId], references: [id], onDelete: Cascade)
+  mentee   User          @relation("Mentee", fields: [menteeId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, mentorId])
+  @@index([mentorId])
+  @@index([menteeId])
+}
+
+// ─── Opportunity (admin-verified before visible)
+enum OpportunityStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model Opportunity {
+  id          String            @id @default(cuid())
+  providerId  String
+  sectorId    String
+  title       String
+  description String?           @db.Text
+  link        String?
+  status      OpportunityStatus @default(PENDING)
+  verifiedById String?
+  verifiedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  provider   User      @relation("OpportunityCreator", fields: [providerId], references: [id], onDelete: Cascade)
+  sector     Sector    @relation(fields: [sectorId], references: [id])
+  verifier   User?     @relation("OpportunityVerifier", fields: [verifiedById], references: [id])
+
+  @@index([status])
+  @@index([sectorId])
+  @@index([providerId])
+}
+
+// ─── Secure messaging (conversation threads)
+model Conversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation("ConversationParticipantUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  receiverId     String
+  bodyEnc        String   @db.Text // encrypted body
+  readAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver     User         @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([senderId, receiverId])
+}
+
+// ─── Audit log (immutable; login, project edits, mentor assign, opportunity approve)
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId       String
+  action       String
+  resourceType String
+  resourceId   String?
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+}
