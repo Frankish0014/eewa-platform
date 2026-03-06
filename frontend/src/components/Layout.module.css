@@ -1,61 +1,109 @@
+/* Sidebar + main content — SaaS layout */
+
 .layout {
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
 }
 
-.header {
+.sidebar {
+  width: 260px;
+  min-height: 100vh;
+  background: var(--sidebar);
+  color: #f1f5f9;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1.5rem;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  flex-direction: column;
+  flex-shrink: 0;
 }
 
 .logo {
-  margin: 0;
-  font-size: 1.25rem;
+  padding: 1.5rem 1.25rem;
+  font-size: 1.35rem;
   font-weight: 700;
-  color: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.user {
+.logo:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
+.nav {
+  flex: 1;
+  padding: 1rem 0;
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.links a {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  padding: 0.625rem 1.25rem;
+  color: #94a3b8;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background var(--transition), color var(--transition);
+}
+
+.links a:hover {
+  background: var(--sidebar-hover);
+  color: #fff;
+  text-decoration: none;
+}
+
+.links a.active {
+  background: rgba(37, 99, 235, 0.15);
+  color: #93c5fd;
+  border-left: 3px solid var(--accent);
+  padding-left: calc(1.25rem - 3px);
+}
+
+.userBlock {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .role {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   text-transform: uppercase;
-  color: var(--muted);
-  padding: 0.2rem 0.5rem;
-  background: var(--bg);
-  border-radius: var(--radius);
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-bottom: 0.25rem;
 }
 
 .email {
-  color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.8125rem;
+  color: #cbd5e1;
+  display: block;
+  margin-bottom: 0.75rem;
+  word-break: break-all;
 }
 
 .logout {
-  padding: 0.4rem 0.75rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
   background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-sm);
+  color: #94a3b8;
+  font-size: 0.875rem;
 }
 
 .logout:hover {
-  background: var(--border);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .main {
   flex: 1;
-  padding: 1.5rem;
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
+  min-width: 0;
+  padding: 1.5rem 2rem;
+  background: var(--bg);
 }

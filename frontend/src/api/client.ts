@@ -50,6 +50,9 @@ async function request<T>(
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error ?? `HTTP ${res.status}`);
   }
+  if (res.status === 204 || res.headers.get('content-length') === '0') {
+    return undefined as T;
+  }
   return res.json() as Promise<T>;
 }
 
@@ -59,8 +62,23 @@ export const api = {
     request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
+  patch: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
+
+export async function register(input: {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role?: string;
+}): Promise<LoginResponse> {
+  const data = await api.post<LoginResponse>('/api/auth/register', input);
+  localStorage.setItem('accessToken', data.accessToken);
+  localStorage.setItem('refreshToken', data.refreshToken);
+  return data;
+}
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const data = await api.post<LoginResponse>('/api/auth/login', { email, password });
@@ -84,4 +102,97 @@ export function logout(): void {
 
 export async function getMe(): Promise<MeResponse> {
   return api.get<MeResponse>('/api/me');
+}
+
+export interface Profile {
+  userId: string;
+  email: string;
+  role: string;
+  firstName: string;
+  lastName: string;
+  createdAt: string;
+}
+
+export async function getProfile(): Promise<{ profile: Profile }> {
+  return api.get<{ profile: Profile }>('/api/profile');
+}
+
+export async function updateProfile(data: { firstName?: string; lastName?: string }): Promise<{ profile: Profile }> {
+  return api.patch<{ profile: Profile }>('/api/profile', data);
+}
+
+export interface Sector {
+  id: string;
+  name: string;
+  description: string | null;
+}
+
+export async function getSectors(): Promise<{ sectors: Sector[] }> {
+  return api.get<{ sectors: Sector[] }>('/api/sectors');
+}
+
+export interface Project {
+  id: string;
+  ownerId: string;
+  sectorId: string;
+  sectorName: string;
+  title: string;
+  description: string | null;
+  status: string;
+  problemStatement: string | null;
+  targetMarket: string | null;
+  businessModel: string | null;
+  fundingAmountSought: number | null;
+  fundingUse: string | null;
+  stage: string | null;
+  legalStatus: string | null;
+  country: string | null;
+  teamSize: number | null;
+  website: string | null;
+  impactDescription: string | null;
+  traction: string | null;
+  registrationNumber: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ProjectCreateInput = {
+  sectorId: string;
+  title: string;
+  description?: string;
+  problemStatement?: string;
+  targetMarket?: string;
+  businessModel?: string;
+  fundingAmountSought?: number;
+  fundingUse?: string;
+  stage?: string;
+  legalStatus?: string;
+  country?: string;
+  teamSize?: number;
+  website?: string;
+  impactDescription?: string;
+  traction?: string;
+  registrationNumber?: string;
+};
+
+export type ProjectUpdateInput = Partial<ProjectCreateInput> & { status?: string };
+
+export async function getProjects(): Promise<{ projects: Project[] }> {
+  return api.get<{ projects: Project[] }>('/api/projects');
+}
+
+export async function createProject(data: ProjectCreateInput): Promise<{ project: Project }> {
+  return api.post<{ project: Project }>('/api/projects', data);
+}
+
+export async function getProject(id: string): Promise<{ project: Project }> {
+  return api.get<{ project: Project }>(`/api/projects/${id}`);
+}
+
+export async function updateProject(id: string, data: ProjectUpdateInput): Promise<{ project: Project }> {
+  return api.patch<{ project: Project }>(`/api/projects/${id}`, data);
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  return api.delete(`/api/projects/${id}`);
 }

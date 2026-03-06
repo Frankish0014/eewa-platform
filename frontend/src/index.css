@@ -1,13 +1,32 @@
+/* EEWA — ClientIQ-style SaaS: clean, professional, data clarity */
+
 :root {
-  --bg: #0f172a;
-  --surface: #1e293b;
-  --border: #334155;
-  --text: #f1f5f9;
-  --muted: #94a3b8;
-  --accent: #0d9488;
-  --accent-hover: #0f766e;
-  --error: #ef4444;
+  --bg: #f8fafc;
+  --bg-card: #ffffff;
+  --sidebar: #0f172a;
+  --sidebar-hover: #1e293b;
+  --border: #e2e8f0;
+  --border-focus: #94a3b8;
+
+  --text: #0f172a;
+  --text-secondary: #475569;
+  --muted: #64748b;
+
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-muted: #eff6ff;
+
+  --success: #059669;
+  --error: #dc2626;
+  --error-muted: #fef2f2;
+  --warning: #d97706;
+
   --radius: 8px;
+  --radius-sm: 6px;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --transition: 0.15s ease;
 }
 
 * {
@@ -16,11 +35,12 @@
 
 body {
   margin: 0;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
 #root {
@@ -33,7 +53,6 @@ a {
 }
 
 a:hover {
-  color: var(--accent-hover);
   text-decoration: underline;
 }
 
@@ -42,6 +61,11 @@ button {
   cursor: pointer;
 }
 
-input, textarea {
+input, textarea, select {
   font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

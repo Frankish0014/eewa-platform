@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import styles from './Login.module.css';
 
@@ -27,7 +27,7 @@ export default function Login() {
   if (loading && !error) {
     return (
       <div className={styles.wrapper}>
-        <p>Loading…</p>
+        <p className={styles.loading}>Signing in…</p>
       </div>
     );
   }
@@ -63,6 +63,9 @@ export default function Login() {
             Sign in
           </button>
         </form>
+        <p className={styles.footer} style={{ marginTop: '1rem' }}>
+          Don't have an account? <Link to="/register">Sign up</Link>
+        </p>
       </div>
     </div>
   );

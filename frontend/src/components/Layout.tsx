@@ -1,10 +1,11 @@
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import styles from './Layout.module.css';
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -13,22 +14,33 @@ export default function Layout() {
 
   return (
     <div className={styles.layout}>
-      <header className={styles.header}>
-        <h1 className={styles.logo}>EEWA</h1>
-        <div className={styles.user}>
-          {user ? (
+      <aside className={styles.sidebar}>
+        <Link to="/" className={styles.logo}>EEWA</Link>
+        <nav className={styles.nav}>
+          <div className={styles.links}>
+            <Link to="/" className={location.pathname === '/' ? styles.active : ''}>
+              Dashboard
+            </Link>
+            <Link to="/profile" className={location.pathname === '/profile' ? styles.active : ''}>
+              Profile
+            </Link>
+            <Link to="/projects" className={location.pathname === '/projects' ? styles.active : ''}>
+              Ventures
+            </Link>
+          </div>
+        </nav>
+        <div className={styles.userBlock}>
+          {user && (
             <>
               <span className={styles.role}>{user.role}</span>
               <span className={styles.email}>{user.email}</span>
             </>
-          ) : (
-            <span className={styles.email}>Loading…</span>
           )}
           <button type="button" onClick={handleLogout} className={styles.logout}>
             Log out
           </button>
         </div>
-      </header>
+      </aside>
       <main className={styles.main}>
         <Outlet />
       </main>

@@ -1,29 +1,56 @@
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import styles from './Dashboard.module.css';
+
+function getRoleLabel(role: string) {
+  const labels: Record<string, string> = {
+    Student: 'Student entrepreneur',
+    Mentor: 'Mentor',
+    Entrepreneur: 'Entrepreneur',
+    OpportunityProvider: 'Entrepreneur',
+    Admin: 'Administrator',
+    InstitutionStaff: 'Institution staff',
+  };
+  return labels[role] ?? role;
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
 
   return (
-    <div className={styles.dashboard}>
-      <h2>Dashboard</h2>
-      <p className={styles.welcome}>
-        Welcome, <strong>{user?.email}</strong>. You are signed in as <strong>{user?.role}</strong>.
-      </p>
+    <div>
+      <h1 className={styles.pageTitle}>Dashboard</h1>
+      <p className={styles.pageSubtitle}>Overview and quick actions</p>
+
+      <div className={styles.hero}>
+        <h2>Welcome back</h2>
+        <p className={styles.welcome}>
+          <strong>{user?.email}</strong> — signed in as {getRoleLabel(user?.role ?? '')}
+        </p>
+      </div>
+
       <section className={styles.section}>
-        <h3>Quick links</h3>
+        <h3>Quick actions</h3>
         <ul className={styles.links}>
           {user?.role === 'Student' && (
             <>
-              <li><a href="#projects">My projects</a></li>
-              <li><a href="#milestones">Milestones</a></li>
+              <li><Link to="/projects">My ventures</Link></li>
+              <li><Link to="/profile">My profile</Link></li>
               <li><a href="#mentors">Find a mentor</a></li>
             </>
           )}
           {user?.role === 'Mentor' && (
             <>
+              <li><Link to="/profile">My profile</Link></li>
               <li><a href="#mentees">My mentees</a></li>
               <li><a href="#matches">Matching requests</a></li>
+            </>
+          )}
+          {user?.role === 'OpportunityProvider' && (
+            <>
+              <li><Link to="/profile">My profile</Link></li>
+              <li><Link to="/projects">My ventures</Link></li>
+              <li><a href="#opportunities">Opportunities</a></li>
             </>
           )}
           {user?.role === 'Admin' && (
@@ -38,8 +65,9 @@ export default function Dashboard() {
           )}
         </ul>
       </section>
+
       <p className={styles.footer}>
-        EEWA — Empowering African student entrepreneurs.
+        EEWA — Empowering African entrepreneurs with mentorship and funding.
       </p>
     </div>
   );

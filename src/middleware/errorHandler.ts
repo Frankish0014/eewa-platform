@@ -16,7 +16,12 @@ export function errorHandler(logger: Logger) {
       });
       return;
     }
-    logger.error('Unhandled error', { error: err });
+    const errObj = err instanceof Error ? err : new Error(String(err));
+    logger.error('Unhandled error', {
+      message: errObj.message,
+      stack: errObj.stack,
+      name: errObj.name,
+    });
     res.status(500).json({ error: 'Internal server error', code: 'INTERNAL_ERROR' });
   };
 }

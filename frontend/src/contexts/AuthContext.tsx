@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { User } from '../api/client';
-import { getMe, login as apiLogin, logout as apiLogout } from '../api/client';
+import { getMe, login as apiLogin, register as apiRegister, logout as apiLogout } from '../api/client';
 
 interface AuthState {
   user: User | null;
@@ -8,8 +8,17 @@ interface AuthState {
   error: string | null;
 }
 
+interface RegisterInput {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role?: string;
+}
+
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>;
+  register: (input: RegisterInput) => Promise<void>;
   logout: () => void;
   clearError: () => void;
 }
@@ -58,6 +67,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [loadUser]);
 
+  const register = useCallback(async (input: RegisterInput) => {
+    setState((s) => ({ ...s, loading: true, error: null }));
+    try {
+      await apiRegister(input);
+      await loadUser();
+    } catch (e) {
+      setState((s) => ({
+        ...s,
+        loading: false,
+        error: e instanceof Error ? e.message : 'Registration failed',
+      }));
+      throw e;
+    }
+  }, [loadUser]);
+
   const logout = useCallback(() => {
     apiLogout();
     setState({ user: null, loading: false, error: null });
@@ -70,6 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextValue = {
     ...state,
     login,
+    register,
     logout,
     clearError,
   };
