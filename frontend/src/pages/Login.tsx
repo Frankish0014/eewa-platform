@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import PasswordInput from '../components/PasswordInput';
 import styles from './Login.module.css';
 
 export default function Login() {
@@ -51,13 +52,7 @@ export default function Login() {
           </label>
           <label className={styles.label}>
             Password
-            <input
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              required
-              className={styles.input}
-            />
+            <PasswordInput name="password" required className={styles.input} />
           </label>
           <button type="submit" className={styles.button} disabled={loading}>
             Sign in

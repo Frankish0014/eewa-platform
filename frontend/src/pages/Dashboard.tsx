@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import OpportunityProviderDashboard from './OpportunityProviderDashboard';
 import styles from './Dashboard.module.css';
 
 function getRoleLabel(role: string) {
@@ -7,7 +8,7 @@ function getRoleLabel(role: string) {
     Student: 'Student entrepreneur',
     Mentor: 'Mentor',
     Entrepreneur: 'Entrepreneur',
-    OpportunityProvider: 'Entrepreneur',
+    OpportunityProvider: 'Opportunity provider',
     Admin: 'Administrator',
     InstitutionStaff: 'Institution staff',
   };
@@ -16,6 +17,10 @@ function getRoleLabel(role: string) {
 
 export default function Dashboard() {
   const { user } = useAuth();
+
+  if (user?.role === 'OpportunityProvider') {
+    return <OpportunityProviderDashboard />;
+  }
 
   return (
     <div>
@@ -46,22 +51,16 @@ export default function Dashboard() {
               <li><a href="#matches">Matching requests</a></li>
             </>
           )}
-          {user?.role === 'OpportunityProvider' && (
-            <>
-              <li><Link to="/profile">My profile</Link></li>
-              <li><Link to="/projects">My ventures</Link></li>
-              <li><a href="#opportunities">Opportunities</a></li>
-            </>
-          )}
           {user?.role === 'Admin' && (
             <>
-              <li><a href="#opportunities">Verify opportunities</a></li>
-              <li><a href="#users">Users</a></li>
-              <li><a href="#audit">Audit log</a></li>
+              <li><Link to="/admin/opportunities">Verify opportunities</Link></li>
+              <li><Link to="/admin/ventures">Ventures overview</Link></li>
+              <li><Link to="/admin/users">Users</Link></li>
+              <li><Link to="/admin/audit">Audit log</Link></li>
             </>
           )}
           {(user?.role === 'Student' || user?.role === 'Mentor') && (
-            <li><a href="#opportunities">Opportunities</a></li>
+            <li><Link to="/opportunities">Opportunities</Link></li>
           )}
         </ul>
       </section>

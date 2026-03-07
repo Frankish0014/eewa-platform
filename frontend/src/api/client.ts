@@ -27,7 +27,8 @@ export interface MeResponse {
 
 async function request<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  isRetry = false
 ): Promise<T> {
   const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
   const token = getToken();
@@ -40,7 +41,16 @@ async function request<T>(
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(url, { ...options, headers });
+
   if (res.status === 401) {
+    if (!isRetry && path !== '/api/auth/refresh' && path !== '/api/auth/login' && path !== '/api/auth/register') {
+      try {
+        await refreshToken();
+        return request<T>(path, options, true);
+      } catch {
+        // Refresh failed, fall through to clear and throw
+      }
+    }
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     window.dispatchEvent(new Event('auth:logout'));
@@ -195,4 +205,107 @@ export async function updateProject(id: string, data: ProjectUpdateInput): Promi
 
 export async function deleteProject(id: string): Promise<void> {
   return api.delete(`/api/projects/${id}`);
+}
+
+// ─── Admin (Admin role only)
+export interface Opportunity {
+  id: string;
+  providerId: string;
+  sectorId: string;
+  sectorName: string;
+  title: string;
+  description: string | null;
+  link: string | null;
+  status: string;
+  verifiedById: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function getOpportunitiesPending(): Promise<{ opportunities: Opportunity[] }> {
+  return api.get<{ opportunities: Opportunity[] }>('/api/opportunities/pending');
+}
+
+export async function verifyOpportunity(id: string, approve: boolean): Promise<{ opportunity: Opportunity }> {
+  return api.patch<{ opportunity: Opportunity }>(`/api/opportunities/${id}/verify`, { approve });
+}
+
+/** Verified opportunities for entrepreneurs (optional sector filter). */
+export async function getVerifiedOpportunities(sectorId?: string): Promise<{ opportunities: Opportunity[] }> {
+  const q = sectorId ? `?sectorId=${encodeURIComponent(sectorId)}` : '';
+  return api.get<{ opportunities: Opportunity[] }>(`/api/opportunities${q}`);
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  role: string;
+  firstName: string;
+  lastName: string;
+  createdAt: string;
+}
+
+export async function getAdminUsers(): Promise<{ users: AdminUser[] }> {
+  return api.get<{ users: AdminUser[] }>('/api/admin/users');
+}
+
+export interface AuditLogEntry {
+  id: string;
+  userId: string;
+  userEmail: string;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export async function getAuditLog(limit?: number): Promise<{ auditLog: AuditLogEntry[] }> {
+  const q = limit != null ? `?limit=${limit}` : '';
+  return api.get<{ auditLog: AuditLogEntry[] }>(`/api/admin/audit-log${q}`);
+}
+
+export interface VentureOverviewItem {
+  id: string;
+  title: string;
+  sectorName: string;
+  status: string;
+  stage: string | null;
+  country: string | null;
+  createdAt: string;
+  ownerId: string;
+  ownerEmail: string;
+  ownerName: string;
+  ownerRole: string;
+}
+
+export interface VenturesOverview {
+  total: number;
+  ventures: VentureOverviewItem[];
+  byUser: { userId: string; email: string; name: string; role: string; count: number }[];
+}
+
+export async function getAdminVenturesOverview(): Promise<{ overview: VenturesOverview }> {
+  return api.get<{ overview: VenturesOverview }>('/api/admin/ventures-overview');
+}
+
+// ─── Opportunity provider (serve entrepreneurs)
+export async function getMyOpportunities(): Promise<{ opportunities: Opportunity[] }> {
+  return api.get<{ opportunities: Opportunity[] }>('/api/opportunities/mine');
+}
+
+export type CreateOpportunityInput = {
+  sectorId: string;
+  title: string;
+  description?: string;
+  link?: string;
+};
+
+export async function createOpportunity(data: CreateOpportunityInput): Promise<{ opportunity: Opportunity }> {
+  return api.post<{ opportunity: Opportunity }>('/api/opportunities', data);
+}
+
+export async function getProviderVenturesOverview(): Promise<{ overview: VenturesOverview }> {
+  return api.get<{ overview: VenturesOverview }>('/api/provider/ventures-overview');
 }

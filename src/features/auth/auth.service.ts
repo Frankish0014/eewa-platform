@@ -3,6 +3,7 @@
  */
 import type { AuthRepository } from './auth.repository';
 import type { TokenService } from './token.service';
+import type { AuditService } from '../audit/audit.service';
 import { hashPassword } from './auth.repository';
 import { UnauthorizedError, ConflictError } from '../../core/errors';
 
@@ -14,7 +15,8 @@ export interface AuthService {
 
 export function createAuthService(
   authRepo: AuthRepository,
-  tokenService: TokenService
+  tokenService: TokenService,
+  auditService?: AuditService
 ): AuthService {
   return {
     async register(input) {
@@ -46,6 +48,12 @@ export function createAuthService(
       }
       const { accessToken, expiresIn } = tokenService.issueAccessToken(user);
       const refreshToken = tokenService.issueRefreshToken(user);
+      await auditService?.log({
+        userId: user.id,
+        action: 'LOGIN',
+        resourceType: 'SESSION',
+        resourceId: null,
+      });
       return { accessToken, refreshToken, expiresIn };
     },
 

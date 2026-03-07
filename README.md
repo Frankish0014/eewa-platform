@@ -2,6 +2,8 @@
 
 Platform for African student entrepreneurs: projects, milestones, mentor matching, opportunities, and secure messaging.
 
+**Hosting:** See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for how to deploy (Railway, Render, Vercel, VPS, etc.).
+
 ## Prerequisites
 
 - **Node.js** 18+

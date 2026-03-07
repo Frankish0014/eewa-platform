@@ -24,9 +24,45 @@ export default function Layout() {
             <Link to="/profile" className={location.pathname === '/profile' ? styles.active : ''}>
               Profile
             </Link>
-            <Link to="/projects" className={location.pathname === '/projects' ? styles.active : ''}>
-              Ventures
-            </Link>
+            {(user?.role === 'Student' || user?.role === 'Mentor') && (
+            <>
+              <Link to="/projects" className={location.pathname === '/projects' ? styles.active : ''}>
+                Ventures
+              </Link>
+              <Link to="/opportunities" className={location.pathname === '/opportunities' ? styles.active : ''}>
+                Opportunities
+              </Link>
+            </>
+          )}
+            {user?.role === 'OpportunityProvider' && (
+              <>
+                <Link to="/provider/opportunities" className={location.pathname === '/provider/opportunities' ? styles.active : ''}>
+                  My opportunities
+                </Link>
+                <Link to="/provider/entrepreneurs" className={location.pathname === '/provider/entrepreneurs' ? styles.active : ''}>
+                  Entrepreneurs
+                </Link>
+                <Link to="/opportunities" className={location.pathname === '/opportunities' ? styles.active : ''}>
+                  Opportunities
+                </Link>
+              </>
+            )}
+            {user?.role === 'Admin' && (
+              <>
+                <Link to="/admin/opportunities" className={location.pathname === '/admin/opportunities' ? styles.active : ''}>
+                  Verify opportunities
+                </Link>
+                <Link to="/admin/ventures" className={location.pathname === '/admin/ventures' ? styles.active : ''}>
+                  Ventures overview
+                </Link>
+                <Link to="/admin/users" className={location.pathname === '/admin/users' ? styles.active : ''}>
+                  Users
+                </Link>
+                <Link to="/admin/audit" className={location.pathname === '/admin/audit' ? styles.active : ''}>
+                  Audit log
+                </Link>
+              </>
+            )}
           </div>
         </nav>
         <div className={styles.userBlock}>

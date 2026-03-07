@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import PasswordInput from '../components/PasswordInput';
 import styles from './Login.module.css';
 
 export default function Register() {
@@ -79,8 +80,7 @@ export default function Register() {
           </label>
           <label className={styles.label}>
             Password (min 8 chars, include uppercase, lowercase, number)
-            <input
-              type="password"
+            <PasswordInput
               name="password"
               autoComplete="new-password"
               required
