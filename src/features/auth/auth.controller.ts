@@ -7,14 +7,24 @@ import type { AuthService } from './auth.service';
 export function createAuthController(authService: AuthService) {
   return {
     async register(req: Request, res: Response): Promise<void> {
-      const { email, password, firstName, lastName, role } = req.body as {
+      const { email, password, firstName, lastName, role, institutionName, institutionCountry } = req.body as {
         email: string;
         password: string;
         firstName: string;
         lastName: string;
         role?: string;
+        institutionName?: string;
+        institutionCountry?: string;
       };
-      const result = await authService.register({ email, password, firstName, lastName, role });
+      const result = await authService.register({
+        email,
+        password,
+        firstName,
+        lastName,
+        role,
+        institutionName,
+        institutionCountry,
+      });
       res.status(201).json(result);
     },
 

@@ -1,40 +1,44 @@
 import { useEffect, useState } from 'react';
 import { getProfile, updateProfile, type Profile } from '../api/client';
+import ProfileForm from '../components/ProfileForm';
 import styles from './Dashboard.module.css';
 import profileStyles from './Profile.module.css';
+import modalStyles from './Projects.module.css';
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [editing, setEditing] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
-  useEffect(() => {
+  const loadProfile = () => {
+    setLoading(true);
+    setError(null);
     getProfile()
-      .then(({ profile }) => {
-        setProfile(profile);
-        setFirstName(profile.firstName);
-        setLastName(profile.lastName);
-      })
+      .then(({ profile: p }) => setProfile(p))
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load profile'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadProfile();
   }, []);
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
+  const handleUpdate = async (data: { firstName: string; lastName: string }) => {
+    setSubmitting(true);
     setError(null);
     try {
-      const { profile } = await updateProfile({ firstName, lastName });
-      setProfile(profile);
-      setEditing(false);
+      const { profile: updated } = await updateProfile({
+        firstName: data.firstName.trim(),
+        lastName: data.lastName.trim(),
+      });
+      setProfile(updated);
+      setShowEditModal(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update');
+      setError(e instanceof Error ? e.message : 'Failed to update profile');
     } finally {
-      setSaving(false);
+      setSubmitting(false);
     }
   };
 
@@ -46,7 +50,15 @@ export default function ProfilePage() {
       </div>
     );
   }
-  if (!profile) return <p className={styles.error}>Profile not found</p>;
+
+  if (!profile) {
+    return (
+      <div>
+        <h1 className={styles.pageTitle}>Profile</h1>
+        <p className={styles.error}>Profile not found.</p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -57,68 +69,71 @@ export default function ProfilePage() {
 
       {error && <div className={profileStyles.errorBanner}>{error}</div>}
 
-      <form onSubmit={handleSave} className={profileStyles.form}>
-        <div className={profileStyles.fieldGroup}>
-          <label className={styles.label}>Email</label>
-          <input
-            type="email"
-            value={profile.email}
-            readOnly
-            className={styles.input}
-            style={{ opacity: 0.9 }}
-          />
-          <span className={profileStyles.roleBadge}>{profile.role}</span>
+      <div className={profileStyles.card}>
+        <div className={profileStyles.cardHeader}>
+          <div>
+            <h2 className={profileStyles.name}>
+              {profile.firstName} {profile.lastName}
+            </h2>
+            <p className={profileStyles.meta}>{profile.email}</p>
+            <span className={profileStyles.roleBadge}>{profile.role}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowEditModal(true)}
+            className={styles.editBtn}
+          >
+            Edit
+          </button>
         </div>
-
-        <div className={profileStyles.fieldGroup}>
-          <label className={styles.label}>First name</label>
-          <input
-            type="text"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            readOnly={!editing}
-            className={styles.input}
-            disabled={!editing}
-          />
-        </div>
-
-        <div className={profileStyles.fieldGroup}>
-          <label className={styles.label}>Last name</label>
-          <input
-            type="text"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            readOnly={!editing}
-            className={styles.input}
-            disabled={!editing}
-          />
-        </div>
-
-        <div className={profileStyles.actions}>
-          {editing ? (
+        <dl className={profileStyles.dl}>
+          <dt>First name</dt>
+          <dd>{profile.firstName}</dd>
+          <dt>Last name</dt>
+          <dd>{profile.lastName}</dd>
+          <dt>Email</dt>
+          <dd>{profile.email}</dd>
+          <dt>Role</dt>
+          <dd>{profile.role}</dd>
+          {profile.institutionName && (
             <>
-              <button type="submit" className={styles.button} disabled={saving}>
-                {saving ? 'Saving…' : 'Save changes'}
-              </button>
+              <dt>Institution</dt>
+              <dd>
+                {profile.institutionName}
+                {profile.institutionCountry ? ` (${profile.institutionCountry})` : ''}
+              </dd>
+            </>
+          )}
+        </dl>
+      </div>
+
+      {showEditModal && (
+        <div
+          className={modalStyles.overlay}
+          onClick={() => !submitting && setShowEditModal(false)}
+          role="presentation"
+        >
+          <div className={modalStyles.modal} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+            <div className={modalStyles.header}>
+              <h3 id="profile-modal-title">Edit profile</h3>
               <button
                 type="button"
-                onClick={() => {
-                  setEditing(false);
-                  setFirstName(profile.firstName);
-                  setLastName(profile.lastName);
-                }}
-                className={profileStyles.cancelBtn}
+                onClick={() => !submitting && setShowEditModal(false)}
+                className={modalStyles.close}
+                aria-label="Close"
               >
-                Cancel
+                ×
               </button>
-            </>
-          ) : (
-            <button type="button" onClick={() => setEditing(true)} className={styles.button}>
-              Edit profile
-            </button>
-          )}
+            </div>
+            <ProfileForm
+              profile={profile}
+              onSubmit={handleUpdate}
+              onCancel={() => !submitting && setShowEditModal(false)}
+              isSubmitting={submitting}
+            />
+          </div>
         </div>
-      </form>
+      )}
     </div>
   );
 }

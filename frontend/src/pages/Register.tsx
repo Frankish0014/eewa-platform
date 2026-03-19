@@ -1,11 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import PasswordInput from '../components/PasswordInput';
 import styles from './Login.module.css';
 
+const ALLOWED_ROLES = ['Student', 'Mentor', 'OpportunityProvider', 'InstitutionStaff'] as const;
+
 export default function Register() {
   const { user, loading, error, register, clearError } = useAuth();
+  const [selectedRole, setSelectedRole] = useState<string>('');
 
   useEffect(() => {
     clearError();
@@ -21,11 +24,19 @@ export default function Register() {
     const firstName = (form.elements.namedItem('firstName') as HTMLInputElement).value;
     const lastName = (form.elements.namedItem('lastName') as HTMLInputElement).value;
     const role = (form.elements.namedItem('role') as HTMLInputElement)?.value;
-    if (!role || !['Student', 'Mentor', 'OpportunityProvider'].includes(role)) {
+    if (!role || !ALLOWED_ROLES.includes(role as (typeof ALLOWED_ROLES)[number])) {
       return;
     }
+    const payload: Parameters<typeof register>[0] = { email, password, firstName, lastName, role };
+    if (role === 'InstitutionStaff') {
+      const institutionName = (form.elements.namedItem('institutionName') as HTMLInputElement)?.value?.trim();
+      const institutionCountry = (form.elements.namedItem('institutionCountry') as HTMLInputElement)?.value?.trim();
+      if (!institutionName || !institutionCountry) return;
+      payload.institutionName = institutionName;
+      payload.institutionCountry = institutionCountry;
+    }
     try {
-      await register({ email, password, firstName, lastName, role });
+      await register(payload);
     } catch {
       // error set in context
     }
@@ -58,22 +69,72 @@ export default function Register() {
             <span className={styles.roleLabel}>I am a...</span>
             <div className={styles.roleOptions}>
               <label className={styles.roleCard}>
-                <input type="radio" name="role" value="Student" required />
+                <input
+                  type="radio"
+                  name="role"
+                  value="Student"
+                  required
+                  onChange={() => setSelectedRole('Student')}
+                />
                 <span className={styles.roleTitle}>Student entrepreneur</span>
                 <span className={styles.roleDesc}>Building a venture, seeking mentorship & funding</span>
               </label>
               <label className={styles.roleCard}>
-                <input type="radio" name="role" value="Mentor" />
+                <input type="radio" name="role" value="Mentor" onChange={() => setSelectedRole('Mentor')} />
                 <span className={styles.roleTitle}>Mentor</span>
                 <span className={styles.roleDesc}>Guiding entrepreneurs, sharing expertise</span>
               </label>
               <label className={styles.roleCard}>
-                <input type="radio" name="role" value="OpportunityProvider" />
-                <span className={styles.roleTitle}>Entrepreneur</span>
+                <input
+                  type="radio"
+                  name="role"
+                  value="OpportunityProvider"
+                  onChange={() => setSelectedRole('OpportunityProvider')}
+                />
+                <span className={styles.roleTitle}>Opportunity provider</span>
                 <span className={styles.roleDesc}>Established business, opportunities to offer</span>
+              </label>
+              <label className={styles.roleCard}>
+                <input
+                  type="radio"
+                  name="role"
+                  value="InstitutionStaff"
+                  onChange={() => setSelectedRole('InstitutionStaff')}
+                />
+                <span className={styles.roleTitle}>Institution staff</span>
+                <span className={styles.roleDesc}>
+                  University or hub staff: offer funding opportunities, partnerships with ventures, and programs that create impact for entrepreneurs
+                </span>
               </label>
             </div>
           </div>
+          {selectedRole === 'InstitutionStaff' && (
+            <div className={styles.roleSection}>
+              <span className={styles.roleLabel}>Your institution (shown on your profile)</span>
+              <label className={styles.label}>
+                Institution name
+                <input
+                  type="text"
+                  name="institutionName"
+                  autoComplete="organization"
+                  placeholder="e.g. African Leadership University"
+                  className={styles.input}
+                  required={selectedRole === 'InstitutionStaff'}
+                />
+              </label>
+              <label className={styles.label}>
+                Country
+                <input
+                  type="text"
+                  name="institutionCountry"
+                  autoComplete="country-name"
+                  placeholder="e.g. Rwanda"
+                  className={styles.input}
+                  required={selectedRole === 'InstitutionStaff'}
+                />
+              </label>
+            </div>
+          )}
           <label className={styles.label}>
             Email
             <input type="email" name="email" autoComplete="email" required className={styles.input} />

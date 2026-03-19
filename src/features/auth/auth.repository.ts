@@ -19,12 +19,14 @@ export interface CreateUserInput {
   firstName: string;
   lastName: string;
   role: string;
+  institutionId?: string;
 }
 
 export interface AuthRepository {
   findByEmail(email: string): Promise<UserForAuth | null>;
   findById(id: string): Promise<UserForAuth | null>;
   createUser(input: CreateUserInput): Promise<UserForAuth>;
+  findOrCreateInstitution(name: string, country: string): Promise<string>;
   verifyPassword(userId: string, plainPassword: string): Promise<boolean>;
 }
 
@@ -54,10 +56,29 @@ export function createAuthRepository(prisma: PrismaClient): AuthRepository {
           firstName: input.firstName,
           lastName: input.lastName,
           role: input.role as 'Student' | 'Mentor' | 'Admin' | 'InstitutionStaff' | 'OpportunityProvider',
+          ...(input.institutionId && { institutionId: input.institutionId }),
         },
         select: { id: true, email: true, role: true, passwordHash: true },
       });
       return user;
+    },
+
+    async findOrCreateInstitution(name: string, country: string): Promise<string> {
+      const trimmedName = name.trim();
+      const trimmedCountry = country.trim();
+      const existing = await prisma.institution.findFirst({
+        where: {
+          name: { equals: trimmedName, mode: 'insensitive' },
+          country: { equals: trimmedCountry, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
+      if (existing) return existing.id;
+      const created = await prisma.institution.create({
+        data: { name: trimmedName, country: trimmedCountry },
+        select: { id: true },
+      });
+      return created.id;
     },
 
     async verifyPassword(userId: string, plainPassword: string): Promise<boolean> {

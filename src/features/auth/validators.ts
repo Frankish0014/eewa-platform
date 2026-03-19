@@ -17,15 +17,27 @@ export const loginSchema = z.object({
   }),
 });
 
-export const registerSchema = z.object({
-  body: z.object({
-    email: z.string().email('Valid email required'),
-    password: passwordSchema,
-    firstName: z.string().min(1, 'First name required').max(100),
-    lastName: z.string().min(1, 'Last name required').max(100),
-    role: z.enum(['Student', 'Mentor', 'OpportunityProvider'], { required_error: 'Please select your role' }),
-  }),
-});
+export const registerSchema = z
+  .object({
+    body: z.object({
+      email: z.string().email('Valid email required'),
+      password: passwordSchema,
+      firstName: z.string().min(1, 'First name required').max(100),
+      lastName: z.string().min(1, 'Last name required').max(100),
+      role: z.enum(['Student', 'Mentor', 'OpportunityProvider', 'InstitutionStaff'], { required_error: 'Please select your role' }),
+      institutionName: z.string().max(200).optional(),
+      institutionCountry: z.string().max(100).optional(),
+    }),
+  })
+  .refine(
+    (data) => {
+      if (data.body.role !== 'InstitutionStaff') return true;
+      const name = data.body.institutionName?.trim();
+      const country = data.body.institutionCountry?.trim();
+      return !!name && !!country;
+    },
+    { message: 'Institution name and country are required for institution staff', path: ['body', 'institutionName'] }
+  );
 
 export const refreshSchema = z.object({
   body: z.object({

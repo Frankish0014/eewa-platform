@@ -43,11 +43,17 @@ import {
   createOpportunityService,
   createOpportunityController,
   opportunityCreateSchema,
+  opportunityUpdateSchema,
   opportunityVerifySchema,
 } from './features/opportunities';
 import { createReportingService, createReportingController } from './features/reporting';
 import { createAuditService } from './features/audit';
 import { createAdminController } from './features/admin';
+import {
+  createNotificationRepository,
+  createNotificationListService,
+  createNotificationListController,
+} from './features/notifications';
 
 const prisma = new PrismaClient();
 const tokenService = createTokenService();
@@ -63,7 +69,15 @@ const milestoneService = createMilestoneService(milestoneRepo);
 const milestoneController = createMilestoneController(milestoneService);
 const mentorRepo = createMentorRepository(prisma);
 const mentorService = createMentorService(mentorRepo);
-const mentorController = createMentorController(mentorService, createAuditService(prisma));
+const auditService = createAuditService(prisma);
+const notificationRepo = createNotificationRepository(prisma);
+const notificationListService = createNotificationListService(notificationRepo, prisma);
+const notificationListController = createNotificationListController(notificationListService);
+const mentorController = createMentorController(
+  mentorService,
+  auditService,
+  notificationListService
+);
 const opportunityRepo = createOpportunityRepository(prisma);
 const opportunityService = createOpportunityService(opportunityRepo);
 const opportunityController = createOpportunityController(opportunityService, createAuditService(prisma));
@@ -136,6 +150,12 @@ app.get('/api/profile', authMiddleware(tokenService), async (req, res, next) => 
 app.patch('/api/profile', authMiddleware(tokenService), validate(updateProfileSchema), async (req, res, next) => {
   try {
     const profile = await profileService.updateProfile(req.user!.userId, req.body);
+    await auditService.log({
+      userId: req.user!.userId,
+      action: 'PROFILE_EDIT',
+      resourceType: 'Profile',
+      resourceId: req.user!.userId,
+    });
     res.json({ profile });
   } catch (e) {
     next(e);
@@ -221,6 +241,17 @@ app.patch(
     mentorController.updateMyProfile(req, res).catch(next);
   }
 );
+// In-app notifications (all authenticated users)
+app.get('/api/notifications', authMiddleware(tokenService), (req, res, next) => {
+  notificationListController.getNotifications(req, res).catch(next);
+});
+app.patch('/api/notifications/:id/read', authMiddleware(tokenService), (req, res, next) => {
+  notificationListController.markRead(req, res).catch(next);
+});
+app.post('/api/notifications/read-all', authMiddleware(tokenService), (req, res, next) => {
+  notificationListController.markAllRead(req, res).catch(next);
+});
+
 app.get('/api/mentor/requests', authMiddleware(tokenService), rbacMiddleware(['Mentor']), (req, res, next) => {
   mentorController.listMyRequests(req, res).catch(next);
 });
@@ -258,6 +289,15 @@ app.post(
   validate(opportunityCreateSchema),
   (req, res, next) => {
     opportunityController.create(req, res).catch(next);
+  }
+);
+app.patch(
+  '/api/opportunities/:id',
+  authMiddleware(tokenService),
+  rbacMiddleware(['OpportunityProvider']),
+  validate(opportunityUpdateSchema),
+  (req, res, next) => {
+    opportunityController.update(req, res).catch(next);
   }
 );
 app.get('/api/provider/ventures-overview', authMiddleware(tokenService), rbacMiddleware(['OpportunityProvider']), (req, res, next) => {

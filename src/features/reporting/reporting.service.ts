@@ -9,11 +9,19 @@ export interface ProjectsBySectorRow {
   count: number;
 }
 
+export interface ProjectsByStatusRow {
+  status: string;
+  count: number;
+}
+
 export interface ReportSummary {
+  totalUsers: number;
   totalProjects: number;
+  totalMentors: number;
   totalMentorAssignments: number;
   totalOpportunities: number;
   verifiedOpportunities: number;
+  projectsByStatus: ProjectsByStatusRow[];
   projectsBySector: ProjectsBySectorRow[];
 }
 
@@ -23,18 +31,27 @@ export function createReportingService(prisma: PrismaClient) {
   return {
     async getSummary(): Promise<ReportSummary> {
       const [
+        totalUsers,
+        totalMentors,
         totalProjects,
         totalMentorAssignments,
         totalOpportunities,
         verifiedOpportunities,
         sectorCounts,
+        statusCounts,
       ] = await Promise.all([
+        prisma.user.count(),
+        prisma.user.count({ where: { role: 'Mentor' } }),
         prisma.project.count(),
         prisma.mentorAssignment.count(),
         prisma.opportunity.count(),
         prisma.opportunity.count({ where: { status: 'VERIFIED' } }),
         prisma.project.groupBy({
           by: ['sectorId'],
+          _count: { id: true },
+        }),
+        prisma.project.groupBy({
+          by: ['status'],
           _count: { id: true },
         }),
       ]);
@@ -54,11 +71,19 @@ export function createReportingService(prisma: PrismaClient) {
         count: s._count.id,
       }));
 
+      const projectsByStatus: ProjectsByStatusRow[] = statusCounts.map((s) => ({
+        status: s.status,
+        count: s._count.id,
+      }));
+
       return {
+        totalUsers,
+        totalMentors,
         totalProjects,
         totalMentorAssignments,
         totalOpportunities,
         verifiedOpportunities,
+        projectsByStatus,
         projectsBySector,
       };
     },

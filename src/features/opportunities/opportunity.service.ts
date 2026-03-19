@@ -1,7 +1,7 @@
 /**
  * Opportunity service — create, list verified, admin verify/reject.
  */
-import type { OpportunityDto, CreateOpportunityData } from './opportunity.repository';
+import type { OpportunityDto, CreateOpportunityData, UpdateOpportunityData } from './opportunity.repository';
 import type { OpportunityRepository } from './opportunity.repository';
 import { NotFoundError } from '../../core/errors';
 
@@ -29,6 +29,10 @@ export function createOpportunityService(repo: OpportunityRepository) {
       const o = await repo.findById(id);
       if (!o) throw new NotFoundError('Opportunity');
       return o;
+    },
+
+    async updateByProvider(id: string, providerId: string, data: UpdateOpportunityData): Promise<OpportunityDto> {
+      return repo.updateByProvider(id, providerId, data);
     },
 
     async verify(id: string, adminId: string, approve: boolean): Promise<OpportunityDto> {

@@ -11,6 +11,12 @@ export function createOpportunityController(opportunityService: OpportunityServi
     async create(req: Request, res: Response): Promise<void> {
       const user = (req as Request & { user?: AuthenticatedRequest }).user!;
       const opp = await opportunityService.create(user.userId, req.body);
+      await auditService?.log({
+        userId: user.userId,
+        action: 'OPPORTUNITY_CREATE',
+        resourceType: 'Opportunity',
+        resourceId: opp.id,
+      });
       res.status(201).json({ opportunity: opp });
     },
 
@@ -34,6 +40,19 @@ export function createOpportunityController(opportunityService: OpportunityServi
     async getById(req: Request, res: Response): Promise<void> {
       const { id } = req.params;
       const opp = await opportunityService.getById(id);
+      res.json({ opportunity: opp });
+    },
+
+    async update(req: Request, res: Response): Promise<void> {
+      const user = (req as Request & { user?: AuthenticatedRequest }).user!;
+      const { id } = req.params;
+      const opp = await opportunityService.updateByProvider(id, user.userId, req.body);
+      await auditService?.log({
+        userId: user.userId,
+        action: 'OPPORTUNITY_EDIT',
+        resourceType: 'Opportunity',
+        resourceId: id,
+      });
       res.json({ opportunity: opp });
     },
 

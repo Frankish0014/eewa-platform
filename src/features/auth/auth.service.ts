@@ -9,7 +9,15 @@ import { UnauthorizedError, ConflictError } from '../../core/errors';
 
 export interface AuthService {
   login(email: string, password: string): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }>;
-  register(input: { email: string; password: string; firstName: string; lastName: string; role?: string }): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }>;
+  register(input: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    role?: string;
+    institutionName?: string;
+    institutionCountry?: string;
+  }): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }>;
   refresh(refreshToken: string | undefined): Promise<{ accessToken: string; expiresIn: number }>;
 }
 
@@ -25,12 +33,23 @@ export function createAuthService(
         throw new ConflictError('An account with this email already exists');
       }
       const passwordHash = await hashPassword(input.password);
+      let institutionId: string | undefined;
+      if (input.role === 'InstitutionStaff' && input.institutionName?.trim() && input.institutionCountry?.trim()) {
+        institutionId = await authRepo.findOrCreateInstitution(input.institutionName.trim(), input.institutionCountry.trim());
+      }
       const user = await authRepo.createUser({
         email: input.email,
         passwordHash,
         firstName: input.firstName,
         lastName: input.lastName,
         role: input.role ?? 'Student',
+        institutionId,
+      });
+      await auditService?.log({
+        userId: user.id,
+        action: 'REGISTER',
+        resourceType: 'User',
+        resourceId: user.id,
       });
       const { accessToken, expiresIn } = tokenService.issueAccessToken(user);
       const refreshToken = tokenService.issueRefreshToken(user);

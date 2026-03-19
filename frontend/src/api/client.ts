@@ -83,6 +83,8 @@ export async function register(input: {
   firstName: string;
   lastName: string;
   role?: string;
+  institutionName?: string;
+  institutionCountry?: string;
 }): Promise<LoginResponse> {
   const data = await api.post<LoginResponse>('/api/auth/register', input);
   localStorage.setItem('accessToken', data.accessToken);
@@ -120,6 +122,8 @@ export interface Profile {
   role: string;
   firstName: string;
   lastName: string;
+  institutionName?: string;
+  institutionCountry?: string;
   createdAt: string;
 }
 
@@ -205,6 +209,95 @@ export async function updateProject(id: string, data: ProjectUpdateInput): Promi
 
 export async function deleteProject(id: string): Promise<void> {
   return api.delete(`/api/projects/${id}`);
+}
+
+// ─── Mentor profile (Mentor role only — set sectors/categories you mentor in)
+export interface MentorProfileDto {
+  id: string;
+  userId: string;
+  bio: string | null;
+  maxMentees: number;
+  isActive: boolean;
+  sectorIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MentorProfileUpdateInput = {
+  bio?: string;
+  maxMentees?: number;
+  isActive?: boolean;
+  sectorIds?: string[];
+};
+
+export async function getMentorProfile(): Promise<{ profile: MentorProfileDto }> {
+  return api.get<{ profile: MentorProfileDto }>('/api/mentor/profile');
+}
+
+export async function updateMentorProfile(data: MentorProfileUpdateInput): Promise<{ profile: MentorProfileDto }> {
+  return api.patch<{ profile: MentorProfileDto }>('/api/mentor/profile', data);
+}
+
+// ─── Mentors (find and request)
+export interface MentorListItem {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  bio: string | null;
+  maxMentees: number;
+  isActive: boolean;
+  sectorIds: string[];
+  sectorNames: string[];
+}
+
+export async function getMentorsBySector(sectorId: string): Promise<{ mentors: MentorListItem[] }> {
+  return api.get<{ mentors: MentorListItem[] }>(`/api/mentors?sectorId=${encodeURIComponent(sectorId)}`);
+}
+
+export async function requestMentorForProject(projectId: string, mentorId: string): Promise<{ id: string }> {
+  return api.post<{ id: string }>(`/api/projects/${projectId}/mentor-requests`, { mentorId });
+}
+
+export interface MentorRequestItem {
+  id: string;
+  projectId: string;
+  projectTitle: string;
+  menteeId: string;
+  menteeName: string;
+  status: string;
+  assignedAt: string;
+}
+
+export async function getMentorRequests(): Promise<{ requests: MentorRequestItem[] }> {
+  return api.get<{ requests: MentorRequestItem[] }>('/api/mentor/requests');
+}
+
+export async function respondToMentorRequest(assignmentId: string, accept: boolean): Promise<void> {
+  return api.patch<void>(`/api/mentor/requests/${assignmentId}`, { accept });
+}
+
+// ─── In-app notifications
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  link: string;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export async function getNotifications(): Promise<{ notifications: NotificationItem[] }> {
+  return api.get<{ notifications: NotificationItem[] }>('/api/notifications');
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  return api.patch<void>(`/api/notifications/${id}/read`, {});
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  return api.post<void>('/api/notifications/read-all', {});
 }
 
 // ─── Admin (Admin role only)
@@ -304,6 +397,17 @@ export type CreateOpportunityInput = {
 
 export async function createOpportunity(data: CreateOpportunityInput): Promise<{ opportunity: Opportunity }> {
   return api.post<{ opportunity: Opportunity }>('/api/opportunities', data);
+}
+
+export type UpdateOpportunityInput = {
+  sectorId?: string;
+  title?: string;
+  description?: string;
+  link?: string;
+};
+
+export async function updateOpportunity(id: string, data: UpdateOpportunityInput): Promise<{ opportunity: Opportunity }> {
+  return api.patch<{ opportunity: Opportunity }>(`/api/opportunities/${id}`, data);
 }
 
 export async function getProviderVenturesOverview(): Promise<{ overview: VenturesOverview }> {

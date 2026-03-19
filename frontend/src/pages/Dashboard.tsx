@@ -41,14 +41,20 @@ export default function Dashboard() {
             <>
               <li><Link to="/projects">My ventures</Link></li>
               <li><Link to="/profile">My profile</Link></li>
-              <li><a href="#mentors">Find a mentor</a></li>
+              <li><Link to="/mentors">Find a mentor</Link></li>
             </>
           )}
           {user?.role === 'Mentor' && (
             <>
+              <li><Link to="/mentor/profile">Mentor profile</Link></li>
+              <li><Link to="/mentor/requests">Mentorship requests</Link></li>
               <li><Link to="/profile">My profile</Link></li>
-              <li><a href="#mentees">My mentees</a></li>
-              <li><a href="#matches">Matching requests</a></li>
+              <li><Link to="/projects">My ventures</Link></li>
+            </>
+          )}
+          {user?.role === 'InstitutionStaff' && (
+            <>
+              <li><Link to="/reports">Reports overview</Link></li>
             </>
           )}
           {user?.role === 'Admin' && (

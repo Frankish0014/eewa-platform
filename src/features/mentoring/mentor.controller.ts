@@ -5,9 +5,14 @@ import type { Request, Response } from 'express';
 import type { MentorService } from './mentor.service';
 import type { AuthenticatedRequest } from '../../core/types';
 import type { AuditService } from '../audit/audit.service';
+import type { NotificationListService } from '../notifications/notification-list.service';
 import { NotFoundError } from '../../core/errors';
 
-export function createMentorController(mentorService: MentorService, auditService?: AuditService) {
+export function createMentorController(
+  mentorService: MentorService,
+  auditService?: AuditService,
+  notificationListService?: NotificationListService
+) {
   return {
     async getMyProfile(req: Request, res: Response): Promise<void> {
       const user = (req as Request & { user?: AuthenticatedRequest }).user!;
@@ -40,6 +45,7 @@ export function createMentorController(mentorService: MentorService, auditServic
       const { id: projectId } = req.params;
       const { mentorId } = req.body as { mentorId: string };
       const result = await mentorService.requestMentor(projectId, user.userId, mentorId);
+      await notificationListService?.createForMentorRequest(projectId, user.userId, mentorId, result.id);
       res.status(201).json(result);
     },
 
@@ -58,6 +64,7 @@ export function createMentorController(mentorService: MentorService, auditServic
       const { assignmentId } = req.params;
       const { accept } = req.body as { accept: boolean };
       await mentorService.respondToRequest(assignmentId, profile.id, accept);
+      await notificationListService?.createForMentorResponse(assignmentId, accept);
       await auditService?.log({
         userId: user.userId,
         action: accept ? 'MENTOR_ASSIGN' : 'MENTOR_UNASSIGN',

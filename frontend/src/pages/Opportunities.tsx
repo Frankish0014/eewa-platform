@@ -28,6 +28,7 @@ export default function OpportunitiesPage() {
       <h1 className={styles.pageTitle}>Opportunities</h1>
       <p className={styles.pageSubtitle}>
         Browse verified opportunities by sector. Filter by your venture’s sector to find relevant funding and programs.
+        Opportunity providers can create and edit their opportunities from <strong>My opportunities</strong> in the sidebar.
       </p>
       <Link to="/">← Dashboard</Link>
 

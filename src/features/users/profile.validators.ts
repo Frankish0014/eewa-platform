@@ -1,11 +1,21 @@
 /**
  * Profile update validation.
+ * Trims whitespace; empty string after trim is treated as "no change" (undefined).
  */
 import { z } from 'zod';
 
+const optionalTrimmedString = z
+  .string()
+  .max(100)
+  .optional()
+  .transform((s) => {
+    const t = typeof s === 'string' ? s.trim() : '';
+    return t.length > 0 ? t : undefined;
+  });
+
 export const updateProfileSchema = z.object({
   body: z.object({
-    firstName: z.string().min(1, 'First name required').max(100).optional(),
-    lastName: z.string().min(1, 'Last name required').max(100).optional(),
+    firstName: optionalTrimmedString,
+    lastName: optionalTrimmedString,
   }),
 });

@@ -1,5 +1,6 @@
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import NotificationBell from './NotificationBell';
 import styles from './Layout.module.css';
 
 export default function Layout() {
@@ -24,16 +25,39 @@ export default function Layout() {
             <Link to="/profile" className={location.pathname === '/profile' ? styles.active : ''}>
               Profile
             </Link>
+            <Link to="/notifications" className={location.pathname === '/notifications' ? styles.active : ''}>
+              Notifications
+            </Link>
+            {(user?.role === 'Admin' || user?.role === 'InstitutionStaff') && (
+              <Link to="/reports" className={location.pathname === '/reports' ? styles.active : ''}>
+                Reports
+              </Link>
+            )}
+            {user?.role === 'Student' && (
+              <Link to="/mentors" className={location.pathname === '/mentors' ? styles.active : ''}>
+                Find a mentor
+              </Link>
+            )}
+            {user?.role === 'Mentor' && (
+              <>
+                <Link to="/mentor/profile" className={location.pathname === '/mentor/profile' ? styles.active : ''}>
+                  Mentor profile
+                </Link>
+                <Link to="/mentor/requests" className={location.pathname === '/mentor/requests' ? styles.active : ''}>
+                  Mentorship requests
+                </Link>
+              </>
+            )}
             {(user?.role === 'Student' || user?.role === 'Mentor') && (
-            <>
-              <Link to="/projects" className={location.pathname === '/projects' ? styles.active : ''}>
-                Ventures
-              </Link>
-              <Link to="/opportunities" className={location.pathname === '/opportunities' ? styles.active : ''}>
-                Opportunities
-              </Link>
-            </>
-          )}
+              <>
+                <Link to="/projects" className={location.pathname === '/projects' ? styles.active : ''}>
+                  Ventures
+                </Link>
+                <Link to="/opportunities" className={location.pathname === '/opportunities' ? styles.active : ''}>
+                  Opportunities
+                </Link>
+              </>
+            )}
             {user?.role === 'OpportunityProvider' && (
               <>
                 <Link to="/provider/opportunities" className={location.pathname === '/provider/opportunities' ? styles.active : ''}>
@@ -78,7 +102,13 @@ export default function Layout() {
         </div>
       </aside>
       <main className={styles.main}>
-        <Outlet />
+        <div className={styles.mainTop}>
+          <div />
+          {user && <NotificationBell />}
+        </div>
+        <div className={styles.mainContent}>
+          <Outlet />
+        </div>
       </main>
     </div>
   );

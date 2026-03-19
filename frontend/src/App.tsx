@@ -12,6 +12,11 @@ import AdminVentures from './pages/AdminVentures';
 import ProviderOpportunities from './pages/ProviderOpportunities';
 import ProviderEntrepreneurs from './pages/ProviderEntrepreneurs';
 import Opportunities from './pages/Opportunities';
+import FindMentor from './pages/FindMentor';
+import MentorProfile from './pages/MentorProfile';
+import MentorRequests from './pages/MentorRequests';
+import NotificationsPage from './pages/NotificationsPage';
+import ReportsSummary from './pages/ReportsSummary';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('accessToken');
@@ -35,11 +40,16 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="profile" element={<Profile />} />
         <Route path="projects" element={<Projects />} />
+        <Route path="mentors" element={<FindMentor />} />
+        <Route path="mentor/profile" element={<MentorProfile />} />
+        <Route path="mentor/requests" element={<MentorRequests />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="opportunities" element={<Opportunities />} />
         <Route path="admin/opportunities" element={<AdminOpportunities />} />
         <Route path="admin/users" element={<AdminUsers />} />
         <Route path="admin/ventures" element={<AdminVentures />} />
         <Route path="admin/audit" element={<AdminAuditLog />} />
+        <Route path="reports" element={<ReportsSummary />} />
         <Route path="provider/opportunities" element={<ProviderOpportunities />} />
         <Route path="provider/entrepreneurs" element={<ProviderEntrepreneurs />} />
       </Route>

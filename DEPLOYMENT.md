@@ -152,6 +152,7 @@ If you host backend and frontend on the same server and want the API to serve th
 ## Database (production)
 
 - **Neon** (or any Postgres): use the production connection string in `DATABASE_URL`.
+- **Supabase**: see **[docs/SUPABASE-SETUP.md](docs/SUPABASE-SETUP.md)** for the Install Integration modal (use **VITE_** as the public env prefix) and setting `DATABASE_URL`.
 - After deploy, run migrations (or push schema) once:
   ```bash
   npx prisma db push
@@ -176,6 +177,37 @@ If you host backend and frontend on the same server and want the API to serve th
 
 ---
 
+## Validate after deploy (staging/production)
+
+After deploying, confirm the following.
+
+### CORS
+
+- From the **frontend origin** (e.g. `https://yourdomain.com`), the browser can call the API without CORS errors.
+- `CORS_ORIGIN` on the backend must match the frontend origin exactly (scheme + host, no trailing slash). If you use multiple origins, you’ll need to adjust the backend CORS config.
+
+### Environment
+
+- **Backend:** `DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_KEY`, `CORS_ORIGIN` are set. Optional: `PORT`, `JWT_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`.
+- **Frontend (build-time):** `VITE_API_URL` is set to the backend URL (no trailing slash) when you run `npm run build` in `frontend/`.
+
+### Proxy / API URL
+
+- If frontend and backend are on **different hosts**, the frontend must be built with `VITE_API_URL` pointing at the backend (e.g. `https://api.yourdomain.com`). There is no dev proxy in production.
+- If frontend and backend are on the **same host** (e.g. API serves the SPA), you can leave `VITE_API_URL` empty or set it to the same origin so requests are same-origin.
+
+### Smoke-test a live server
+
+From your machine (or CI), against the deployed API:
+
+```bash
+BASE_URL=https://api.yourdomain.com npm run smoke-test
+```
+
+Requires the server to be running and an admin user to exist (e.g. from `npm run db:seed`). This hits `/api/health`, `/api/admin/ping`, login, `/api/opportunities`, and `/api/admin/ventures-overview`.
+
+---
+
 ## Checklist before go-live
 
 - [ ] `NODE_ENV=production` (or equivalent) on the API.
@@ -184,3 +216,4 @@ If you host backend and frontend on the same server and want the API to serve th
 - [ ] Frontend built with correct `VITE_API_URL` (your API URL).
 - [ ] `DATABASE_URL` points to production Postgres; migrations/push and seed (if needed) run once.
 - [ ] Admin user exists (seed or create) and you can log in.
+- [ ] Run smoke-test against the live URL and fix any failing requests.

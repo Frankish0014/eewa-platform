@@ -47,6 +47,7 @@ model User {
   receivedMessages Message[]  @relation("MessageReceiver")
   conversationParticipations ConversationParticipant[] @relation("ConversationParticipantUser")
   auditLogs      AuditLog[]
+  notifications  Notification[]
 
   @@index([email])
   @@index([role])
@@ -266,4 +267,21 @@ model AuditLog {
   @@index([action])
   @@index([resourceType, resourceId])
   @@index([createdAt])
+}
+
+// ─── In-app notifications (mentor requests, mentor response, etc.)
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String    // MENTOR_REQUEST | MENTOR_ACCEPTED | MENTOR_DECLINED
+  title     String
+  message   String    @db.Text
+  link      String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, readAt])
 }

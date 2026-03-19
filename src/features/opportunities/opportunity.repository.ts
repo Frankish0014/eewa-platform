@@ -26,6 +26,13 @@ export interface CreateOpportunityData {
   link?: string;
 }
 
+export interface UpdateOpportunityData {
+  sectorId?: string;
+  title?: string;
+  description?: string;
+  link?: string;
+}
+
 export function createOpportunityRepository(prisma: PrismaClient) {
   return {
     async create(providerId: string, data: CreateOpportunityData): Promise<OpportunityDto> {
@@ -79,6 +86,23 @@ export function createOpportunityRepository(prisma: PrismaClient) {
         include: { sector: { select: { id: true, name: true } } },
       });
       return o ? toDto(o) : null;
+    },
+
+    async updateByProvider(id: string, providerId: string, data: UpdateOpportunityData): Promise<OpportunityDto> {
+      const o = await prisma.opportunity.findUnique({ where: { id } });
+      if (!o) throw new NotFoundError('Opportunity');
+      if (o.providerId !== providerId) throw new ForbiddenError('Not the opportunity provider');
+      const updated = await prisma.opportunity.update({
+        where: { id },
+        data: {
+          ...(data.sectorId != null && { sectorId: data.sectorId }),
+          ...(data.title != null && { title: data.title }),
+          ...(data.description !== undefined && { description: data.description || null }),
+          ...(data.link !== undefined && { link: data.link || null }),
+        },
+        include: { sector: { select: { id: true, name: true } } },
+      });
+      return toDto(updated);
     },
 
     async verify(id: string, adminId: string, approve: boolean): Promise<OpportunityDto> {

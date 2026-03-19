@@ -14,6 +14,8 @@ interface RegisterInput {
   firstName: string;
   lastName: string;
   role?: string;
+  institutionName?: string;
+  institutionCountry?: string;
 }
 
 interface AuthContextValue extends AuthState {

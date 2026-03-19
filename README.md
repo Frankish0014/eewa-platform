@@ -22,7 +22,7 @@ npm install
 npx prisma generate
 npx prisma db push          # or: npx prisma migrate dev
 
-npm run dev                 # API at http://localhost:3000
+npm run dev                 # API at http://localhost:3001 (or PORT in .env). For production use: npm run build && npm start
 ```
 
 ### 2. Frontend
@@ -49,8 +49,8 @@ npm run dev:all
 | `npm run dev`        | `cd frontend && npm run dev` |
 
 - **Frontend:** http://localhost:5173  
-- **API:** http://localhost:3000  
-- **Health:** http://localhost:3000/api/health  
+- **API:** http://localhost:3001 (or your `PORT`)  
+- **Health:** http://localhost:3001/api/health (or the port in your `.env`)
 
 The frontend proxies `/api` to the backend when using the dev server, so you can use the app without setting `VITE_API_URL`.
 
@@ -64,17 +64,32 @@ npx prisma db seed
 
 This creates **admin@eewa.dev** / **AdminPassword1!**. Use these credentials on the login page.
 
+## After backend code changes
+
+Backend runs compiled code from `dist/`. After changing backend source:
+
+1. **Rebuild:** `npm run build`
+2. **Restart** the API process (e.g. stop with Ctrl+C, then run `npm start` again).
+
+If you don’t restart, the running process will keep using the old build and new routes or logic won’t apply (e.g. admin or provider endpoints may 404).
+
+**Optional checks after restart:**
+
+- Run API tests: `npm test` (requires seeded DB: `npm run db:seed`)
+- Smoke-test a running server: `npm run smoke-test` (default: `http://localhost:3001`; set `BASE_URL` for another host)
+
 ## Scripts
 
 ### Root (backend)
 
 | Script         | Description              |
 |----------------|--------------------------|
-| `npm run dev`  | Start API (tsx watch)    |
 | `npm run build`| Compile TypeScript       |
 | `npm start`    | Run compiled API         |
+| `npm test`     | Run API integration tests |
+| `npm run smoke-test` | Hit key endpoints on a running server (optional) |
 | `npm run db:push`   | Push schema to DB  |
-| `npm run db:migrate`| Create migration   |
+| `npm run db:seed`   | Seed admin + sectors |
 | `npm run db:studio` | Open Prisma Studio |
 
 ### Frontend
