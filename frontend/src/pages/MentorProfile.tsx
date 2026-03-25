@@ -5,7 +5,6 @@ import {
   getMentorProfile,
   updateMentorProfile,
   getSectors,
-  type MentorProfileDto,
   type Sector,
 } from '../api/client';
 import styles from './Dashboard.module.css';
@@ -13,7 +12,6 @@ import adminStyles from './Admin.module.css';
 
 export default function MentorProfilePage() {
   const { user } = useAuth();
-  const [profile, setProfile] = useState<MentorProfileDto | null>(null);
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -33,14 +31,12 @@ export default function MentorProfilePage() {
       getSectors().then((r) => setSectors(r.sectors)),
       getMentorProfile()
         .then((r) => {
-          setProfile(r.profile);
           setBio(r.profile.bio ?? '');
           setMaxMentees(r.profile.maxMentees);
           setIsActive(r.profile.isActive);
           setSelectedSectorIds(r.profile.sectorIds ?? []);
         })
         .catch(() => {
-          setProfile(null);
           setSelectedSectorIds([]);
         }),
     ]).finally(() => setLoading(false));
@@ -68,7 +64,10 @@ export default function MentorProfilePage() {
         isActive,
         sectorIds: selectedSectorIds,
       });
-      setProfile(updated);
+      setBio(updated.bio ?? '');
+      setMaxMentees(updated.maxMentees);
+      setIsActive(updated.isActive);
+      setSelectedSectorIds(updated.sectorIds ?? []);
       setSuccess('Mentor profile saved. You will appear in "Find a mentor" for the categories you selected.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save');

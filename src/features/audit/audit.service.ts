@@ -6,6 +6,9 @@ import { logger } from '../../common/logger';
 
 export type AuditAction =
   | 'LOGIN'
+  | 'LOGIN_TRUSTED_DEVICE'
+  | 'LOGIN_EMAIL_OTP_SENT'
+  | 'LOGIN_EMAIL_OTP_VERIFIED'
   | 'REGISTER'
   | 'PROJECT_CREATE'
   | 'PROJECT_EDIT'
@@ -16,7 +19,8 @@ export type AuditAction =
   | 'OPPORTUNITY_CREATE'
   | 'OPPORTUNITY_EDIT'
   | 'OPPORTUNITY_APPROVE'
-  | 'OPPORTUNITY_REJECT';
+  | 'OPPORTUNITY_REJECT'
+  | 'OPPORTUNITY_APPLY';
 
 export interface AuditEntry {
   userId: string;

@@ -31,22 +31,27 @@ async function main() {
   const mentorEmail = `mentor${rnd}@eewa.dev`;
   const pass = 'TestPassword1!';
 
-  await request('/api/auth/register', {
+  const sReg = await request('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify({ email: studentEmail, password: pass, role: 'Student', firstName: 'Stu', lastName: 'Dent' }),
   });
-  await request('/api/auth/register', {
+  const mReg = await request('/api/auth/register', {
     method: 'POST',
     body: JSON.stringify({ email: mentorEmail, password: pass, role: 'Mentor', firstName: 'Men', lastName: 'Tor' }),
   });
+  const sDevice = sReg.body?.deviceToken;
+  const mDevice = mReg.body?.deviceToken;
+  if (!sDevice || !mDevice) {
+    throw new Error('Register must return deviceToken for login (email OTP trusted device)');
+  }
 
   const sLogin = await request('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email: studentEmail, password: pass }),
+    body: JSON.stringify({ email: studentEmail, password: pass, deviceToken: sDevice }),
   });
   const mLogin = await request('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email: mentorEmail, password: pass }),
+    body: JSON.stringify({ email: mentorEmail, password: pass, deviceToken: mDevice }),
   });
   if (!sLogin.body?.accessToken || !mLogin.body?.accessToken) {
     throw new Error(`Login failed: student=${sLogin.status}, mentor=${mLogin.status}`);

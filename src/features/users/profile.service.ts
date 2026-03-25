@@ -9,6 +9,7 @@ export interface Profile {
   role: string;
   firstName: string;
   lastName: string;
+  skills: string | null;
   institutionName?: string;
   institutionCountry?: string;
   createdAt: string;
@@ -17,6 +18,7 @@ export interface Profile {
 export interface UpdateProfileInput {
   firstName?: string;
   lastName?: string;
+  skills?: string | null;
 }
 
 export function createProfileService(prisma: PrismaClient) {
@@ -30,6 +32,7 @@ export function createProfileService(prisma: PrismaClient) {
           role: true,
           firstName: true,
           lastName: true,
+          skills: true,
           createdAt: true,
           institution: { select: { name: true, country: true } },
         },
@@ -41,6 +44,7 @@ export function createProfileService(prisma: PrismaClient) {
         role: user.role,
         firstName: user.firstName,
         lastName: user.lastName,
+        skills: user.skills ?? null,
         ...(user.institution && {
           institutionName: user.institution.name,
           institutionCountry: user.institution.country,
@@ -50,9 +54,11 @@ export function createProfileService(prisma: PrismaClient) {
     },
 
     async updateProfile(userId: string, input: UpdateProfileInput): Promise<Profile> {
-      const data: { firstName?: string; lastName?: string } = {};
+      const data: { firstName?: string; lastName?: string; skills?: string | null } = {};
       if (input.firstName !== undefined && input.firstName !== '') data.firstName = input.firstName;
       if (input.lastName !== undefined && input.lastName !== '') data.lastName = input.lastName;
+      if (input.skills !== undefined) data.skills = input.skills;
+
       if (Object.keys(data).length === 0) {
         const existing = await prisma.user.findUnique({
           where: { id: userId },
@@ -62,6 +68,7 @@ export function createProfileService(prisma: PrismaClient) {
             role: true,
             firstName: true,
             lastName: true,
+            skills: true,
             createdAt: true,
             institution: { select: { name: true, country: true } },
           },
@@ -73,6 +80,7 @@ export function createProfileService(prisma: PrismaClient) {
           role: existing.role,
           firstName: existing.firstName,
           lastName: existing.lastName,
+          skills: existing.skills ?? null,
           ...(existing.institution && {
             institutionName: existing.institution.name,
             institutionCountry: existing.institution.country,
@@ -89,6 +97,7 @@ export function createProfileService(prisma: PrismaClient) {
           role: true,
           firstName: true,
           lastName: true,
+          skills: true,
           createdAt: true,
           institution: { select: { name: true, country: true } },
         },
@@ -99,6 +108,7 @@ export function createProfileService(prisma: PrismaClient) {
         role: user.role,
         firstName: user.firstName,
         lastName: user.lastName,
+        skills: user.skills ?? null,
         ...(user.institution && {
           institutionName: user.institution.name,
           institutionCountry: user.institution.country,

@@ -42,6 +42,7 @@ export default function Dashboard() {
               <li><Link to="/projects">My ventures</Link></li>
               <li><Link to="/profile">My profile</Link></li>
               <li><Link to="/mentors">Find a mentor</Link></li>
+              <li><Link to="/messages">Messages</Link></li>
             </>
           )}
           {user?.role === 'Mentor' && (
@@ -50,6 +51,7 @@ export default function Dashboard() {
               <li><Link to="/mentor/requests">Mentorship requests</Link></li>
               <li><Link to="/profile">My profile</Link></li>
               <li><Link to="/projects">My ventures</Link></li>
+              <li><Link to="/messages">Messages</Link></li>
             </>
           )}
           {user?.role === 'InstitutionStaff' && (

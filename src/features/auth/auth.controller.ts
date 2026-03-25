@@ -1,5 +1,5 @@
 /**
- * Auth controller — login, refresh, logout (session invalidation placeholder).
+ * Auth controller — register, login, email OTP step, refresh.
  */
 import type { Request, Response } from 'express';
 import type { AuthService } from './auth.service';
@@ -29,8 +29,18 @@ export function createAuthController(authService: AuthService) {
     },
 
     async login(req: Request, res: Response): Promise<void> {
-      const { email, password } = req.body as { email: string; password: string };
-      const result = await authService.login(email, password);
+      const { email, password, deviceToken } = req.body as {
+        email: string;
+        password: string;
+        deviceToken?: string;
+      };
+      const result = await authService.login(email, password, deviceToken);
+      res.json(result);
+    },
+
+    async verifyEmailOtp(req: Request, res: Response): Promise<void> {
+      const { emailOtpToken, code } = req.body as { emailOtpToken: string; code: string };
+      const result = await authService.completeEmailOtpLogin(emailOtpToken, code);
       res.json(result);
     },
 

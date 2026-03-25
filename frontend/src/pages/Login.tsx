@@ -1,11 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import PasswordInput from '../components/PasswordInput';
 import styles from './Login.module.css';
 
 export default function Login() {
-  const { user, loading, error, login, clearError } = useAuth();
+  const { user, loading, error, login, completeEmailOtpLogin, clearError } = useAuth();
+  const [step, setStep] = useState<'password' | 'emailOtp'>('password');
+  const [emailOtpToken, setEmailOtpToken] = useState<string | null>(null);
+  const [pendingEmail, setPendingEmail] = useState('');
 
   useEffect(() => {
     clearError();
@@ -13,22 +16,82 @@ export default function Login() {
 
   if (user) return <Navigate to="/" replace />;
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handlePasswordSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
     const email = (form.elements.namedItem('email') as HTMLInputElement).value;
     const password = (form.elements.namedItem('password') as HTMLInputElement).value;
     try {
-      await login(email, password);
+      const result = await login(email, password);
+      if ('requiresEmailOtp' in result && result.requiresEmailOtp) {
+        setEmailOtpToken(result.emailOtpToken);
+        setPendingEmail(email);
+        setStep('emailOtp');
+      }
     } catch {
       // error set in context
     }
   };
 
-  if (loading && !error) {
+  const handleOtpSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!emailOtpToken) return;
+    const code = (e.currentTarget.elements.namedItem('code') as HTMLInputElement).value.replace(/\s/g, '');
+    try {
+      await completeEmailOtpLogin(emailOtpToken, code);
+    } catch {
+      // error set in context
+    }
+  };
+
+  if (loading && !error && step === 'password') {
     return (
       <div className={styles.wrapper}>
         <p className={styles.loading}>Signing in…</p>
+      </div>
+    );
+  }
+
+  if (step === 'emailOtp') {
+    return (
+      <div className={styles.wrapper}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>Check your email</h1>
+          <p className={styles.subtitle}>
+            We sent a 6-digit sign-in code to <strong>{pendingEmail}</strong>. Enter it below. The code expires in a few
+            minutes.
+          </p>
+          <form onSubmit={handleOtpSubmit} className={styles.form}>
+            {error && <p className={styles.error}>{error}</p>}
+            <label className={styles.label}>
+              Email code
+              <input
+                type="text"
+                name="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                className={styles.input}
+                placeholder="000000"
+              />
+            </label>
+            <button type="submit" className={styles.button} disabled={loading}>
+              {loading ? 'Verifying…' : 'Continue'}
+            </button>
+            <button
+              type="button"
+              className={styles.button}
+              style={{ marginTop: '0.5rem', background: 'transparent', border: '1px solid var(--border, #ccc)' }}
+              onClick={() => {
+                setStep('password');
+                setEmailOtpToken(null);
+                clearError();
+              }}
+            >
+              Back to password
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
@@ -38,7 +101,7 @@ export default function Login() {
       <div className={styles.card}>
         <h1 className={styles.title}>EEWA</h1>
         <p className={styles.subtitle}>Entrepreneur Empowerment Web Application</p>
-        <form onSubmit={handleSubmit} className={styles.form}>
+        <form onSubmit={handlePasswordSubmit} className={styles.form}>
           {error && <p className={styles.error}>{error}</p>}
           <label className={styles.label}>
             Email

@@ -114,7 +114,14 @@ export default function NotificationsPage() {
                     borderRadius: 0,
                   }}
                 >
-                  <span className={bellStyles.itemTitle}>{n.title}</span>
+                  <span className={bellStyles.itemTitle}>
+                    {n.type === 'MESSAGE_RECEIVED' && (
+                      <span className={bellStyles.messageTag} title="Message">
+                        💬{' '}
+                      </span>
+                    )}
+                    {n.title}
+                  </span>
                   <span className={bellStyles.itemMessage}>{n.message}</span>
                   <span className={bellStyles.itemTime}>{formatTime(n.createdAt)}</span>
                 </button>

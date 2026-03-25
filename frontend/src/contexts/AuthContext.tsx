@@ -1,6 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import type { User } from '../api/client';
-import { getMe, login as apiLogin, register as apiRegister, logout as apiLogout } from '../api/client';
+import type { User, LoginResult, LoginResponse } from '../api/client';
+import {
+  getMe,
+  login as apiLogin,
+  completeLoginWithEmailOtp,
+  register as apiRegister,
+  logout as apiLogout,
+} from '../api/client';
 
 interface AuthState {
   user: User | null;
@@ -19,7 +25,8 @@ interface RegisterInput {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  completeEmailOtpLogin: (emailOtpToken: string, code: string) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => void;
   clearError: () => void;
@@ -54,16 +61,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('auth:logout', onLogout);
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
-      await apiLogin(email, password);
+      const result = await apiLogin(email, password);
+      if ('requiresEmailOtp' in result && result.requiresEmailOtp) {
+        setState((s) => ({ ...s, loading: false }));
+        return result;
+      }
       await loadUser();
+      return result as LoginResponse;
     } catch (e) {
       setState((s) => ({
         ...s,
         loading: false,
         error: e instanceof Error ? e.message : 'Login failed',
+      }));
+      throw e;
+    }
+  }, [loadUser]);
+
+  const completeEmailOtpLoginCb = useCallback(async (emailOtpToken: string, code: string) => {
+    setState((s) => ({ ...s, loading: true, error: null }));
+    try {
+      await completeLoginWithEmailOtp(emailOtpToken, code);
+      await loadUser();
+    } catch (e) {
+      setState((s) => ({
+        ...s,
+        loading: false,
+        error: e instanceof Error ? e.message : 'Verification failed',
       }));
       throw e;
     }
@@ -96,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextValue = {
     ...state,
     login,
+    completeEmailOtpLogin: completeEmailOtpLoginCb,
     register,
     logout,
     clearError,

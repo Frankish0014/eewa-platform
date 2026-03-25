@@ -83,10 +83,21 @@ export default function AdminOpportunities() {
                   <tr key={o.id}>
                     <td>
                       <strong>{o.title}</strong>
+                      {o.requireCompletedMilestone && (
+                        <span style={{ display: 'inline-block', marginLeft: '0.35rem', fontSize: '0.7rem', fontWeight: 600 }}>
+                          [milestone required]
+                        </span>
+                      )}
                       {o.description && (
                         <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: 'var(--muted)' }}>
                           {o.description.slice(0, 80)}
                           {o.description.length > 80 ? '…' : ''}
+                        </p>
+                      )}
+                      {o.eligibilityCriteria?.trim() && (
+                        <p style={{ margin: '0.35rem 0 0', fontSize: '0.75rem', color: 'var(--muted)', whiteSpace: 'pre-wrap' }}>
+                          <strong>Eligibility:</strong> {o.eligibilityCriteria.slice(0, 200)}
+                          {o.eligibilityCriteria.length > 200 ? '…' : ''}
                         </p>
                       )}
                     </td>

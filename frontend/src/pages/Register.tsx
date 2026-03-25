@@ -140,12 +140,12 @@ export default function Register() {
             <input type="email" name="email" autoComplete="email" required className={styles.input} />
           </label>
           <label className={styles.label}>
-            Password (min 8 chars, include uppercase, lowercase, number)
+            Password (min 12 chars, include uppercase, lowercase, number)
             <PasswordInput
               name="password"
               autoComplete="new-password"
               required
-              minLength={8}
+              minLength={12}
               className={styles.input}
             />
           </label>

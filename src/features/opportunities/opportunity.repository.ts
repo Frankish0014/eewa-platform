@@ -1,5 +1,5 @@
 /**
- * Opportunity CRUD and verification — providers create, admin verifies, students see verified.
+ * Opportunity CRUD, verification, and student applications.
  */
 import { OpportunityStatus, type PrismaClient } from '@prisma/client';
 import { NotFoundError, ForbiddenError } from '../../core/errors';
@@ -12,6 +12,8 @@ export interface OpportunityDto {
   title: string;
   description: string | null;
   link: string | null;
+  eligibilityCriteria: string | null;
+  requireCompletedMilestone: boolean;
   status: OpportunityStatus;
   verifiedById: string | null;
   verifiedAt: string | null;
@@ -24,6 +26,8 @@ export interface CreateOpportunityData {
   title: string;
   description?: string;
   link?: string;
+  eligibilityCriteria?: string;
+  requireCompletedMilestone?: boolean;
 }
 
 export interface UpdateOpportunityData {
@@ -31,6 +35,17 @@ export interface UpdateOpportunityData {
   title?: string;
   description?: string;
   link?: string;
+  eligibilityCriteria?: string;
+  requireCompletedMilestone?: boolean;
+}
+
+export interface OpportunityApplicationDto {
+  id: string;
+  opportunityId: string;
+  studentId: string;
+  primaryProjectId: string | null;
+  message: string | null;
+  createdAt: string;
 }
 
 export function createOpportunityRepository(prisma: PrismaClient) {
@@ -43,6 +58,8 @@ export function createOpportunityRepository(prisma: PrismaClient) {
           title: data.title,
           description: data.description ?? null,
           link: data.link ?? null,
+          eligibilityCriteria: data.eligibilityCriteria?.trim() ? data.eligibilityCriteria.trim() : null,
+          requireCompletedMilestone: data.requireCompletedMilestone ?? false,
           status: OpportunityStatus.PENDING,
         },
         include: { sector: { select: { id: true, name: true } } },
@@ -99,6 +116,12 @@ export function createOpportunityRepository(prisma: PrismaClient) {
           ...(data.title != null && { title: data.title }),
           ...(data.description !== undefined && { description: data.description || null }),
           ...(data.link !== undefined && { link: data.link || null }),
+          ...(data.eligibilityCriteria !== undefined && {
+            eligibilityCriteria: data.eligibilityCriteria?.trim() ? data.eligibilityCriteria.trim() : null,
+          }),
+          ...(data.requireCompletedMilestone !== undefined && {
+            requireCompletedMilestone: data.requireCompletedMilestone,
+          }),
         },
         include: { sector: { select: { id: true, name: true } } },
       });
@@ -121,10 +144,78 @@ export function createOpportunityRepository(prisma: PrismaClient) {
       });
       return toDto(updated);
     },
+
+    async resolveApplyProject(
+      studentId: string,
+      sectorId: string,
+      primaryProjectId?: string | null
+    ): Promise<{ id: string } | null> {
+      if (primaryProjectId) {
+        const p = await prisma.project.findFirst({
+          where: { id: primaryProjectId, ownerId: studentId, sectorId },
+          select: { id: true },
+        });
+        return p;
+      }
+      return prisma.project.findFirst({
+        where: { ownerId: studentId, sectorId },
+        orderBy: { updatedAt: 'desc' },
+        select: { id: true },
+      });
+    },
+
+    async projectHasCompletedMilestone(projectId: string): Promise<boolean> {
+      const n = await prisma.milestone.count({
+        where: { projectId, completedAt: { not: null } },
+      });
+      return n > 0;
+    },
+
+    async findApplication(opportunityId: string, studentId: string): Promise<OpportunityApplicationDto | null> {
+      const row = await prisma.opportunityApplication.findUnique({
+        where: { opportunityId_studentId: { opportunityId, studentId } },
+      });
+      return row ? applicationToDto(row) : null;
+    },
+
+    async createApplication(input: {
+      opportunityId: string;
+      studentId: string;
+      primaryProjectId: string | null;
+      message?: string | null;
+    }): Promise<OpportunityApplicationDto> {
+      const row = await prisma.opportunityApplication.create({
+        data: {
+          opportunityId: input.opportunityId,
+          studentId: input.studentId,
+          primaryProjectId: input.primaryProjectId,
+          message: input.message?.trim() ? input.message.trim() : null,
+        },
+      });
+      return applicationToDto(row);
+    },
   };
 }
 
 export type OpportunityRepository = ReturnType<typeof createOpportunityRepository>;
+
+function applicationToDto(row: {
+  id: string;
+  opportunityId: string;
+  studentId: string;
+  primaryProjectId: string | null;
+  message: string | null;
+  createdAt: Date;
+}): OpportunityApplicationDto {
+  return {
+    id: row.id,
+    opportunityId: row.opportunityId,
+    studentId: row.studentId,
+    primaryProjectId: row.primaryProjectId,
+    message: row.message,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
 
 function toDto(o: {
   id: string;
@@ -133,6 +224,8 @@ function toDto(o: {
   title: string;
   description: string | null;
   link: string | null;
+  eligibilityCriteria: string | null;
+  requireCompletedMilestone: boolean;
   status: OpportunityStatus;
   verifiedById: string | null;
   verifiedAt: Date | null;
@@ -148,6 +241,8 @@ function toDto(o: {
     title: o.title,
     description: o.description,
     link: o.link,
+    eligibilityCriteria: o.eligibilityCriteria,
+    requireCompletedMilestone: o.requireCompletedMilestone,
     status: o.status,
     verifiedById: o.verifiedById,
     verifiedAt: o.verifiedAt ? o.verifiedAt.toISOString() : null,

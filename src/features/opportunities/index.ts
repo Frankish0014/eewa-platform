@@ -1,5 +1,10 @@
 export { createOpportunityRepository } from './opportunity.repository';
 export { createOpportunityService } from './opportunity.service';
 export { createOpportunityController } from './opportunity.controller';
-export { opportunityCreateSchema, opportunityUpdateSchema, opportunityVerifySchema } from './opportunity.validators';
+export {
+  opportunityCreateSchema,
+  opportunityUpdateSchema,
+  opportunityVerifySchema,
+  opportunityApplySchema,
+} from './opportunity.validators';
 export type { OpportunityDto } from './opportunity.repository';

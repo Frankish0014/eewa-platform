@@ -140,6 +140,24 @@ export function createNotificationListService(
       });
     },
 
+    /** When someone sends a mentorship message, notify the recipient (bell + notifications page). */
+    async createForNewMessage(
+      receiverId: string,
+      senderName: string,
+      plainBody: string,
+      conversationId: string
+    ): Promise<void> {
+      const preview =
+        plainBody.length > 140 ? `${plainBody.slice(0, 137)}…` : plainBody;
+      await repo.create({
+        userId: receiverId,
+        type: 'MESSAGE_RECEIVED',
+        title: 'New message',
+        message: `${senderName} sent you a message: ${preview}`,
+        link: `/messages?conversationId=${encodeURIComponent(conversationId)}`,
+      });
+    },
+
     /** When a mentor accepts or declines, notify the student (mentee). */
     async createForMentorResponse(assignmentId: string, accept: boolean): Promise<void> {
       const a = await prisma.mentorAssignment.findUnique({

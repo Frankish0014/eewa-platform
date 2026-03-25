@@ -70,5 +70,18 @@ export function createOpportunityController(opportunityService: OpportunityServi
       });
       res.json({ opportunity: opp });
     },
+
+    async apply(req: Request, res: Response): Promise<void> {
+      const user = (req as Request & { user?: AuthenticatedRequest }).user!;
+      const { id } = req.params;
+      const application = await opportunityService.apply(id, user.userId, user.role, req.body);
+      await auditService?.log({
+        userId: user.userId,
+        action: 'OPPORTUNITY_APPLY',
+        resourceType: 'Opportunity',
+        resourceId: id,
+      });
+      res.status(201).json({ application });
+    },
   };
 }

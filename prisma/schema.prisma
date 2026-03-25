@@ -27,6 +27,8 @@ model User {
   role         Role
   firstName    String
   lastName     String
+  // Optional profile skills / interests (FR-3)
+  skills       String?   @db.Text
   // GDPR: optional; encrypt at rest if present
   phoneEnc     String?
   institutionId String?
@@ -48,10 +50,40 @@ model User {
   conversationParticipations ConversationParticipant[] @relation("ConversationParticipantUser")
   auditLogs      AuditLog[]
   notifications  Notification[]
+  opportunityApplications OpportunityApplication[]
+  trustedDevices          TrustedDevice[]
+  emailLoginChallenges    EmailLoginChallenge[]
 
   @@index([email])
   @@index([role])
   @@index([institutionId])
+}
+
+// Recognized browser/device — skip email OTP when token matches (stored as SHA-256 hex)
+model TrustedDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tokenHash])
+  @@index([userId])
+}
+
+// One-time email code after password on an unrecognized device
+model EmailLoginChallenge {
+  id         String    @id @default(cuid())
+  userId     String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // ─── Institution (universities, hubs)
@@ -110,6 +142,7 @@ model Project {
   sector    Sector    @relation(fields: [sectorId], references: [id])
   milestones Milestone[]
   mentorAssignments MentorAssignment[]
+  opportunityApplications OpportunityApplication[]
 
   @@index([ownerId])
   @@index([sectorId])
@@ -196,6 +229,10 @@ model Opportunity {
   title       String
   description String?           @db.Text
   link        String?
+  // Shown to students at apply time; empty = no extra text requirement
+  eligibilityCriteria String? @db.Text
+  // If true, student must have ≥1 completed milestone on a project in this opportunity’s sector
+  requireCompletedMilestone Boolean @default(false)
   status      OpportunityStatus @default(PENDING)
   verifiedById String?
   verifiedAt  DateTime?
@@ -205,10 +242,30 @@ model Opportunity {
   provider   User      @relation("OpportunityCreator", fields: [providerId], references: [id], onDelete: Cascade)
   sector     Sector    @relation(fields: [sectorId], references: [id])
   verifier   User?     @relation("OpportunityVerifier", fields: [verifiedById], references: [id])
+  applications OpportunityApplication[]
 
   @@index([status])
   @@index([sectorId])
   @@index([providerId])
+}
+
+// Student application to a verified opportunity (eligibility enforced in service)
+model OpportunityApplication {
+  id             String   @id @default(cuid())
+  opportunityId  String
+  studentId      String
+  primaryProjectId String? // student’s venture in matching sector (for audit / eligibility)
+  message        String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  student     User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  primaryProject Project? @relation(fields: [primaryProjectId], references: [id], onDelete: SetNull)
+
+  @@unique([opportunityId, studentId])
+  @@index([studentId])
+  @@index([opportunityId])
 }
 
 // ─── Secure messaging (conversation threads)

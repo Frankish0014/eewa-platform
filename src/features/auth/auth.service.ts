@@ -1,14 +1,49 @@
 /**
- * Auth business logic — credential validation, JWT issuance, refresh.
+ * Auth — register/login with trusted devices; email OTP on new browsers.
  */
+import * as bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import type { PrismaClient } from '@prisma/client';
 import type { AuthRepository } from './auth.repository';
 import type { TokenService } from './token.service';
 import type { AuditService } from '../audit/audit.service';
+import type { EmailDelivery } from '../notifications/email-delivery';
 import { hashPassword } from './auth.repository';
+import { generateDeviceToken, hashDeviceToken } from './device-token';
+import { config } from '../../config';
+import { logger } from '../../common/logger';
 import { UnauthorizedError, ConflictError } from '../../core/errors';
 
+const MAX_TRUSTED_DEVICES = 10;
+const OTP_BCRYPT_COST = 10;
+
+export type LoginResult =
+  | { accessToken: string; refreshToken: string; expiresIn: number; deviceToken: string }
+  | { requiresEmailOtp: true; emailOtpToken: string };
+
+export type RegisterResult = {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  deviceToken: string;
+};
+
+export interface AuthServiceDeps {
+  authRepo: AuthRepository;
+  tokenService: TokenService;
+  prisma: PrismaClient;
+  emailDelivery: EmailDelivery;
+  auditService?: AuditService;
+}
+
 export interface AuthService {
-  login(email: string, password: string): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }>;
+  login(email: string, password: string, deviceToken?: string): Promise<LoginResult>;
+  completeEmailOtpLogin(emailOtpToken: string, code: string): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+    deviceToken: string;
+  }>;
   register(input: {
     email: string;
     password: string;
@@ -17,15 +52,39 @@ export interface AuthService {
     role?: string;
     institutionName?: string;
     institutionCountry?: string;
-  }): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }>;
+  }): Promise<RegisterResult>;
   refresh(refreshToken: string | undefined): Promise<{ accessToken: string; expiresIn: number }>;
 }
 
-export function createAuthService(
-  authRepo: AuthRepository,
+async function pruneTrustedDevicesIfNeeded(prisma: PrismaClient, userId: string): Promise<void> {
+  const count = await prisma.trustedDevice.count({ where: { userId } });
+  if (count < MAX_TRUSTED_DEVICES) return;
+  const toRemove = count - MAX_TRUSTED_DEVICES + 1;
+  const oldest = await prisma.trustedDevice.findMany({
+    where: { userId },
+    orderBy: { lastUsedAt: 'asc' },
+    take: toRemove,
+    select: { id: true },
+  });
+  if (oldest.length > 0) {
+    await prisma.trustedDevice.deleteMany({ where: { id: { in: oldest.map((o) => o.id) } } });
+  }
+}
+
+function issueSession(
   tokenService: TokenService,
-  auditService?: AuditService
-): AuthService {
+  user: { id: string; email: string; role: string; passwordHash: string | null },
+  deviceToken: string
+) {
+  const u = { id: user.id, email: user.email, role: user.role, passwordHash: user.passwordHash };
+  const { accessToken, expiresIn } = tokenService.issueAccessToken(u);
+  const refreshToken = tokenService.issueRefreshToken(u);
+  return { accessToken, refreshToken, expiresIn, deviceToken };
+}
+
+export function createAuthService(deps: AuthServiceDeps): AuthService {
+  const { authRepo, tokenService, prisma, emailDelivery, auditService } = deps;
+
   return {
     async register(input) {
       const existing = await authRepo.findByEmail(input.email);
@@ -51,12 +110,16 @@ export function createAuthService(
         resourceType: 'User',
         resourceId: user.id,
       });
-      const { accessToken, expiresIn } = tokenService.issueAccessToken(user);
-      const refreshToken = tokenService.issueRefreshToken(user);
-      return { accessToken, refreshToken, expiresIn };
+      const deviceToken = generateDeviceToken();
+      const tokenHash = hashDeviceToken(deviceToken);
+      await pruneTrustedDevicesIfNeeded(prisma, user.id);
+      await prisma.trustedDevice.create({
+        data: { userId: user.id, tokenHash },
+      });
+      return issueSession(tokenService, user, deviceToken);
     },
 
-    async login(email: string, password: string) {
+    async login(email: string, password: string, deviceToken?: string) {
       const user = await authRepo.findByEmail(email);
       if (!user || !user.passwordHash) {
         throw new UnauthorizedError('Invalid credentials');
@@ -65,15 +128,139 @@ export function createAuthService(
       if (!valid) {
         throw new UnauthorizedError('Invalid credentials');
       }
-      const { accessToken, expiresIn } = tokenService.issueAccessToken(user);
-      const refreshToken = tokenService.issueRefreshToken(user);
+
+      if (deviceToken && deviceToken.length >= 32) {
+        const tokenHash = hashDeviceToken(deviceToken);
+        const trusted = await prisma.trustedDevice.findUnique({
+          where: { userId_tokenHash: { userId: user.id, tokenHash } },
+        });
+        if (trusted) {
+          await prisma.trustedDevice.update({
+            where: { id: trusted.id },
+            data: { lastUsedAt: new Date() },
+          });
+          await auditService?.log({
+            userId: user.id,
+            action: 'LOGIN_TRUSTED_DEVICE',
+            resourceType: 'SESSION',
+            resourceId: null,
+          });
+          return issueSession(tokenService, user, deviceToken);
+        }
+      }
+
+      const resendAfterMs = config.EMAIL_OTP_RESEND_SECONDS * 1000;
+      const recentOpen = await prisma.emailLoginChallenge.findFirst({
+        where: {
+          userId: user.id,
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
+          createdAt: { gt: new Date(Date.now() - resendAfterMs) },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (recentOpen) {
+        const emailOtpToken = tokenService.issueEmailOtpPendingToken(user.id, recentOpen.id);
+        return { requiresEmailOtp: true, emailOtpToken };
+      }
+
+      await prisma.emailLoginChallenge.updateMany({
+        where: { userId: user.id, consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+
+      const codeNum = crypto.randomInt(0, 1_000_000);
+      const code = codeNum.toString().padStart(6, '0');
+      const codeHash = await bcrypt.hash(code, OTP_BCRYPT_COST);
+      const expiresAt = new Date(Date.now() + config.EMAIL_OTP_CODE_TTL_MINUTES * 60 * 1000);
+
+      const challenge = await prisma.emailLoginChallenge.create({
+        data: { userId: user.id, codeHash, expiresAt },
+      });
+
+      const ttlText = `${config.EMAIL_OTP_CODE_TTL_MINUTES} minute(s)`;
+      const body = [
+        `Your EEWA sign-in code is: ${code}`,
+        '',
+        `This code expires in ${ttlText}. If you did not try to sign in, ignore this email.`,
+      ].join('\n');
+
+      if (config.NODE_ENV === 'development') {
+        logger.info('Email login OTP (dev)', { to: user.email, code });
+      }
+
+      await emailDelivery.sendMail(user.email, 'Your EEWA sign-in code', body);
+
+      await auditService?.log({
+        userId: user.id,
+        action: 'LOGIN_EMAIL_OTP_SENT',
+        resourceType: 'SESSION',
+        resourceId: null,
+      });
+
+      const emailOtpToken = tokenService.issueEmailOtpPendingToken(user.id, challenge.id);
+      return { requiresEmailOtp: true, emailOtpToken };
+    },
+
+    async completeEmailOtpLogin(emailOtpToken: string, code: string) {
+      let sub: string;
+      let chl: string;
+      try {
+        ({ sub, chl } = tokenService.verifyEmailOtpPendingToken(emailOtpToken));
+      } catch {
+        throw new UnauthorizedError('Invalid or expired verification step');
+      }
+
+      const challenge = await prisma.emailLoginChallenge.findUnique({
+        where: { id: chl },
+      });
+      if (!challenge || challenge.userId !== sub) {
+        throw new UnauthorizedError('Invalid verification step');
+      }
+      if (challenge.consumedAt) {
+        throw new UnauthorizedError('This code has already been used');
+      }
+      if (challenge.expiresAt < new Date()) {
+        throw new UnauthorizedError('This code has expired');
+      }
+
+      const normalized = code.replace(/\s/g, '');
+      const ok = await bcrypt.compare(normalized, challenge.codeHash);
+      if (!ok) {
+        throw new UnauthorizedError('Invalid code');
+      }
+
+      await prisma.emailLoginChallenge.update({
+        where: { id: challenge.id },
+        data: { consumedAt: new Date() },
+      });
+
+      const user = await authRepo.findById(sub);
+      if (!user?.passwordHash) {
+        throw new UnauthorizedError('User not found');
+      }
+
+      const deviceToken = generateDeviceToken();
+      const tokenHash = hashDeviceToken(deviceToken);
+      await pruneTrustedDevicesIfNeeded(prisma, user.id);
+      await prisma.trustedDevice.create({
+        data: { userId: user.id, tokenHash },
+      });
+
+      await auditService?.log({
+        userId: user.id,
+        action: 'LOGIN_EMAIL_OTP_VERIFIED',
+        resourceType: 'SESSION',
+        resourceId: null,
+      });
       await auditService?.log({
         userId: user.id,
         action: 'LOGIN',
         resourceType: 'SESSION',
         resourceId: null,
       });
-      return { accessToken, refreshToken, expiresIn };
+
+      return issueSession(tokenService, user, deviceToken);
     },
 
     async refresh(refreshToken: string | undefined) {

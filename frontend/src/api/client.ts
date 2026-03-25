@@ -7,6 +7,28 @@ function getToken(): string | null {
   return localStorage.getItem('accessToken');
 }
 
+function apiUrl(path: string): string {
+  return path.startsWith('http') ? path : `${API_BASE}${path}`;
+}
+
+/** One refresh at a time so parallel 401s do not race and spam /api/auth/refresh. */
+let refreshInFlight: Promise<string> | null = null;
+
+/** Opaque token — this browser is trusted until logout (then email OTP on next sign-in). */
+export const DEVICE_TOKEN_STORAGE_KEY = 'eewa_device_token';
+
+export function getDeviceToken(): string | null {
+  return localStorage.getItem(DEVICE_TOKEN_STORAGE_KEY);
+}
+
+export function setDeviceToken(token: string): void {
+  localStorage.setItem(DEVICE_TOKEN_STORAGE_KEY, token);
+}
+
+export function clearDeviceToken(): void {
+  localStorage.removeItem(DEVICE_TOKEN_STORAGE_KEY);
+}
+
 export type Role = 'Student' | 'Mentor' | 'Admin' | 'InstitutionStaff' | 'OpportunityProvider';
 
 export interface User {
@@ -19,7 +41,10 @@ export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+  deviceToken: string;
 }
+
+export type LoginResult = LoginResponse | { requiresEmailOtp: true; emailOtpToken: string };
 
 export interface MeResponse {
   user: User;
@@ -30,7 +55,7 @@ async function request<T>(
   options: RequestInit = {},
   isRetry = false
 ): Promise<T> {
-  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+  const url = apiUrl(path);
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -43,7 +68,15 @@ async function request<T>(
   const res = await fetch(url, { ...options, headers });
 
   if (res.status === 401) {
-    if (!isRetry && path !== '/api/auth/refresh' && path !== '/api/auth/login' && path !== '/api/auth/register') {
+    const hasRefresh = !!localStorage.getItem('refreshToken');
+    if (
+      hasRefresh &&
+      !isRetry &&
+      path !== '/api/auth/refresh' &&
+      path !== '/api/auth/login' &&
+      path !== '/api/auth/register' &&
+      path !== '/api/auth/verify-email-otp'
+    ) {
       try {
         await refreshToken();
         return request<T>(path, options, true);
@@ -57,13 +90,30 @@ async function request<T>(
     throw new Error('Unauthorized');
   }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? `HTTP ${res.status}`);
+    const err = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      details?: { fieldErrors?: Record<string, string[] | undefined> };
+    };
+    let msg = err.error ?? `HTTP ${res.status}`;
+    const fe = err.details?.fieldErrors;
+    if (fe && typeof fe === 'object') {
+      const first = Object.values(fe).flat().filter(Boolean)[0];
+      if (typeof first === 'string') msg = `${msg}: ${first}`;
+    }
+    throw new Error(msg);
   }
   if (res.status === 204 || res.headers.get('content-length') === '0') {
     return undefined as T;
   }
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  if (!text.trim()) {
+    return undefined as T;
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`Invalid response from server (HTTP ${res.status})`);
+  }
 }
 
 export const api = {
@@ -89,27 +139,82 @@ export async function register(input: {
   const data = await api.post<LoginResponse>('/api/auth/register', input);
   localStorage.setItem('accessToken', data.accessToken);
   localStorage.setItem('refreshToken', data.refreshToken);
+  if (data.deviceToken) setDeviceToken(data.deviceToken);
   return data;
 }
 
-export async function login(email: string, password: string): Promise<LoginResponse> {
-  const data = await api.post<LoginResponse>('/api/auth/login', { email, password });
+async function publicPost<T>(path: string, body: unknown): Promise<T> {
+  const url = apiUrl(path);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+  }
+  if (res.status === 204 || res.headers.get('content-length') === '0') {
+    return undefined as T;
+  }
+  return res.json() as Promise<T>;
+}
+
+export async function login(email: string, password: string): Promise<LoginResult> {
+  const deviceToken = getDeviceToken();
+  const data = await publicPost<LoginResult>('/api/auth/login', {
+    email,
+    password,
+    ...(deviceToken ? { deviceToken } : {}),
+  });
+  if ('requiresEmailOtp' in data && data.requiresEmailOtp) {
+    return data;
+  }
+  const lr = data as LoginResponse;
+  localStorage.setItem('accessToken', lr.accessToken);
+  localStorage.setItem('refreshToken', lr.refreshToken);
+  if (lr.deviceToken) setDeviceToken(lr.deviceToken);
+  return lr;
+}
+
+export async function completeLoginWithEmailOtp(emailOtpToken: string, code: string): Promise<LoginResponse> {
+  const data = await publicPost<LoginResponse>('/api/auth/verify-email-otp', { emailOtpToken, code });
   localStorage.setItem('accessToken', data.accessToken);
   localStorage.setItem('refreshToken', data.refreshToken);
+  if (data.deviceToken) setDeviceToken(data.deviceToken);
   return data;
 }
 
 export async function refreshToken(): Promise<string> {
-  const refresh = localStorage.getItem('refreshToken');
-  if (!refresh) throw new Error('No refresh token');
-  const data = await api.post<{ accessToken: string }>('/api/auth/refresh', { refreshToken: refresh });
-  localStorage.setItem('accessToken', data.accessToken);
-  return data.accessToken;
+  if (refreshInFlight) return refreshInFlight;
+  const run = (async () => {
+    const refresh = localStorage.getItem('refreshToken');
+    if (!refresh) throw new Error('No refresh token');
+    const res = await fetch(apiUrl('/api/auth/refresh'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: refresh }),
+    });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `HTTP ${res.status}`);
+    }
+    const data = (await res.json()) as { accessToken: string };
+    localStorage.setItem('accessToken', data.accessToken);
+    return data.accessToken;
+  })();
+  refreshInFlight = run;
+  try {
+    return await run;
+  } finally {
+    refreshInFlight = null;
+  }
 }
 
 export function logout(): void {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
+  clearDeviceToken();
 }
 
 export async function getMe(): Promise<MeResponse> {
@@ -122,6 +227,7 @@ export interface Profile {
   role: string;
   firstName: string;
   lastName: string;
+  skills: string | null;
   institutionName?: string;
   institutionCountry?: string;
   createdAt: string;
@@ -131,7 +237,11 @@ export async function getProfile(): Promise<{ profile: Profile }> {
   return api.get<{ profile: Profile }>('/api/profile');
 }
 
-export async function updateProfile(data: { firstName?: string; lastName?: string }): Promise<{ profile: Profile }> {
+export async function updateProfile(data: {
+  firstName?: string;
+  lastName?: string;
+  skills?: string | null;
+}): Promise<{ profile: Profile }> {
   return api.patch<{ profile: Profile }>('/api/profile', data);
 }
 
@@ -309,6 +419,8 @@ export interface Opportunity {
   title: string;
   description: string | null;
   link: string | null;
+  eligibilityCriteria: string | null;
+  requireCompletedMilestone: boolean;
   status: string;
   verifiedById: string | null;
   verifiedAt: string | null;
@@ -393,6 +505,8 @@ export type CreateOpportunityInput = {
   title: string;
   description?: string;
   link?: string;
+  eligibilityCriteria?: string;
+  requireCompletedMilestone?: boolean;
 };
 
 export async function createOpportunity(data: CreateOpportunityInput): Promise<{ opportunity: Opportunity }> {
@@ -404,7 +518,25 @@ export type UpdateOpportunityInput = {
   title?: string;
   description?: string;
   link?: string;
+  eligibilityCriteria?: string;
+  requireCompletedMilestone?: boolean;
 };
+
+export interface OpportunityApplication {
+  id: string;
+  opportunityId: string;
+  studentId: string;
+  primaryProjectId: string | null;
+  message: string | null;
+  createdAt: string;
+}
+
+export async function applyToOpportunity(
+  opportunityId: string,
+  body: { primaryProjectId?: string; message?: string; eligibilityAcknowledged?: boolean }
+): Promise<{ application: OpportunityApplication }> {
+  return api.post<{ application: OpportunityApplication }>(`/api/opportunities/${opportunityId}/apply`, body);
+}
 
 export async function updateOpportunity(id: string, data: UpdateOpportunityInput): Promise<{ opportunity: Opportunity }> {
   return api.patch<{ opportunity: Opportunity }>(`/api/opportunities/${id}`, data);
@@ -412,4 +544,63 @@ export async function updateOpportunity(id: string, data: UpdateOpportunityInput
 
 export async function getProviderVenturesOverview(): Promise<{ overview: VenturesOverview }> {
   return api.get<{ overview: VenturesOverview }>('/api/provider/ventures-overview');
+}
+
+// ─── Messaging (mentor ↔ student, active mentorship)
+export interface MessagingPeer {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  projectId: string;
+  projectTitle: string;
+  assignmentId: string;
+}
+
+export async function getMessagingEligiblePeers(): Promise<{ peers: MessagingPeer[] }> {
+  return api.get<{ peers: MessagingPeer[] }>('/api/messages/eligible-peers');
+}
+
+export interface ConversationSummary {
+  id: string;
+  peer: { id: string; firstName: string; lastName: string; email: string };
+  lastMessagePreview: string | null;
+  lastMessageAt: string | null;
+  unreadCount: number;
+}
+
+export async function getConversations(): Promise<{ conversations: ConversationSummary[] }> {
+  return api.get<{ conversations: ConversationSummary[] }>('/api/conversations');
+}
+
+export async function openConversation(peerUserId: string): Promise<{ conversationId: string }> {
+  return api.post<{ conversationId: string }>('/api/conversations', { peerUserId });
+}
+
+export interface ThreadMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  body: string;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export async function getConversationMessages(
+  conversationId: string,
+  opts?: { limit?: number; before?: string }
+): Promise<{ messages: ThreadMessage[] }> {
+  const params = new URLSearchParams();
+  if (opts?.limit != null) params.set('limit', String(opts.limit));
+  if (opts?.before) params.set('before', opts.before);
+  const q = params.toString();
+  return api.get<{ messages: ThreadMessage[] }>(`/api/conversations/${conversationId}/messages${q ? `?${q}` : ''}`);
+}
+
+export async function sendConversationMessage(
+  conversationId: string,
+  body: string
+): Promise<{ message: ThreadMessage }> {
+  return api.post<{ message: ThreadMessage }>(`/api/conversations/${conversationId}/messages`, { body });
 }

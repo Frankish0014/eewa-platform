@@ -7,6 +7,7 @@ import styles from './VentureForm.module.css';
 export type ProfileUpdateInput = {
   firstName: string;
   lastName: string;
+  skills?: string;
 };
 
 interface ProfileFormProps {
@@ -26,11 +27,12 @@ export default function ProfileForm({
     e.preventDefault();
     const form = e.currentTarget;
     const get = (name: string) =>
-      (form.elements.namedItem(name) as HTMLInputElement | null)?.value?.trim() ?? '';
+      (form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null)?.value?.trim() ?? '';
     const firstName = get('firstName');
     const lastName = get('lastName');
+    const skillsRaw = (form.elements.namedItem('skills') as HTMLTextAreaElement | null)?.value ?? '';
     if (!firstName || !lastName) return;
-    onSubmit({ firstName, lastName });
+    onSubmit({ firstName, lastName, skills: skillsRaw.trim() });
   };
 
   return (
@@ -73,6 +75,20 @@ export default function ProfileForm({
             defaultValue={profile.lastName}
             placeholder="Last name"
             autoComplete="family-name"
+          />
+        </div>
+      </section>
+
+      <section className={styles.section}>
+        <h4>Skills & interests</h4>
+        <div className={styles.field}>
+          <label>Skills (optional)</label>
+          <textarea
+            name="skills"
+            rows={4}
+            maxLength={4000}
+            defaultValue={profile.skills ?? ''}
+            placeholder="e.g. Product design, Python, fundraising"
           />
         </div>
       </section>

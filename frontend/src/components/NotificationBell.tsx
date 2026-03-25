@@ -100,7 +100,14 @@ export default function NotificationBell() {
                     className={`${styles.item} ${!n.readAt ? styles.unread : ''}`}
                     onClick={() => handleItemClick(n)}
                   >
-                    <span className={styles.itemTitle}>{n.title}</span>
+                    <span className={styles.itemTitle}>
+                      {n.type === 'MESSAGE_RECEIVED' && (
+                        <span className={styles.messageTag} title="Message">
+                          💬{' '}
+                        </span>
+                      )}
+                      {n.title}
+                    </span>
                     <span className={styles.itemMessage}>{n.message}</span>
                     <span className={styles.itemTime}>{formatTime(n.createdAt)}</span>
                   </button>

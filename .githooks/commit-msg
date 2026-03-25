@@ -1,0 +1,13 @@
+#!/bin/sh
+# Strip Cursor Agent git trailers so they are not stored in history.
+# Enable: git config core.hooksPath .githooks  (or run npm install — see package.json "prepare")
+set -e
+COMMIT_MSG_FILE=$1
+TMP="${COMMIT_MSG_FILE}.tmp"
+: >"$TMP"
+while IFS= read -r line || [ -n "$line" ]; do
+  printf '%s\n' "$line" | grep -qiE '^Co-authored-by:.*cursor' && continue
+  printf '%s\n' "$line" | grep -qiE '^Made with Cursor' && continue
+  printf '%s\n' "$line" >>"$TMP"
+done <"$COMMIT_MSG_FILE"
+mv "$TMP" "$COMMIT_MSG_FILE"

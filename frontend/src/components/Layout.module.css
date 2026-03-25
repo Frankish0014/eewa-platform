@@ -123,3 +123,83 @@
   min-width: 0;
   padding: 1rem 2rem 1.5rem;
 }
+
+/* Responsive layout:
+   - On tablets, slightly reduce sidebar width/padding.
+   - On mobile, turn sidebar into a toggleable drawer to prevent overflow.
+*/
+
+.mobileToggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 40px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    width: 220px;
+  }
+
+  .mainTop {
+    padding: 0.75rem 1rem 0;
+  }
+
+  .mainContent {
+    padding: 1rem 1.25rem 1.5rem;
+  }
+}
+
+.sidebarOverlay {
+  display: none;
+}
+
+.sidebarOpen {
+  /* overridden for mobile drawer */
+}
+
+@media (max-width: 640px) {
+  .layout {
+    position: relative;
+  }
+
+  .sidebarOverlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.35);
+    z-index: 998;
+  }
+
+  .mobileToggle {
+    display: flex;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 999;
+    transform: translateX(-110%);
+    width: 260px;
+    box-shadow: var(--shadow-md);
+  }
+
+  .sidebarOpen {
+    transform: translateX(0);
+  }
+
+  .mainTop {
+    padding: 0.65rem 0.75rem 0;
+    justify-content: space-between;
+  }
+
+  .mainContent {
+    padding: 0.75rem 0.75rem 1.25rem;
+  }
+}

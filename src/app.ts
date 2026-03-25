@@ -17,6 +17,7 @@ import {
   loginSchema,
   registerSchema,
   refreshSchema,
+  emailOtpVerifySchema,
 } from './features/auth';
 
 import { PrismaClient } from '@prisma/client';
@@ -45,7 +46,9 @@ import {
   opportunityCreateSchema,
   opportunityUpdateSchema,
   opportunityVerifySchema,
+  opportunityApplySchema,
 } from './features/opportunities';
+import { createEmailDelivery } from './features/notifications/email-delivery';
 import { createReportingService, createReportingController } from './features/reporting';
 import { createAuditService } from './features/audit';
 import { createAdminController } from './features/admin';
@@ -54,22 +57,38 @@ import {
   createNotificationListService,
   createNotificationListController,
 } from './features/notifications';
+import {
+  createMessagingRepository,
+  createMessagingService,
+  createMessagingController,
+  openConversationSchema,
+  sendMessageSchema,
+  listMessagesQuerySchema,
+} from './features/messaging';
 
 const prisma = new PrismaClient();
 const tokenService = createTokenService();
 const authRepo = createAuthRepository(prisma);
-const authService = createAuthService(authRepo, tokenService, createAuditService(prisma));
+const emailDelivery = createEmailDelivery(config);
+const auditServiceEarly = createAuditService(prisma);
+const authService = createAuthService({
+  authRepo,
+  tokenService,
+  prisma,
+  emailDelivery,
+  auditService: auditServiceEarly,
+});
 const authController = createAuthController(authService);
 const profileService = createProfileService(prisma);
 const projectRepo = createProjectRepository(prisma);
 const projectService = createProjectService(projectRepo);
-const projectController = createProjectController(projectService, createAuditService(prisma));
+const projectController = createProjectController(projectService, auditServiceEarly);
 const milestoneRepo = createMilestoneRepository(prisma);
 const milestoneService = createMilestoneService(milestoneRepo);
 const milestoneController = createMilestoneController(milestoneService);
 const mentorRepo = createMentorRepository(prisma);
 const mentorService = createMentorService(mentorRepo);
-const auditService = createAuditService(prisma);
+const auditService = auditServiceEarly;
 const notificationRepo = createNotificationRepository(prisma);
 const notificationListService = createNotificationListService(notificationRepo, prisma);
 const notificationListController = createNotificationListController(notificationListService);
@@ -79,11 +98,39 @@ const mentorController = createMentorController(
   notificationListService
 );
 const opportunityRepo = createOpportunityRepository(prisma);
-const opportunityService = createOpportunityService(opportunityRepo);
-const opportunityController = createOpportunityController(opportunityService, createAuditService(prisma));
+const opportunityService = createOpportunityService(opportunityRepo, {
+  onOpportunityVerified: async (opp) => {
+    const students = await prisma.user.findMany({
+      where: {
+        role: 'Student',
+        projects: { some: { sectorId: opp.sectorId } },
+      },
+      select: { email: true },
+    });
+    const body = [
+      `A new verified opportunity in ${opp.sectorName} is available on EEWA.`,
+      `Title: ${opp.title}`,
+      opp.description ? `\n${opp.description}` : '',
+      opp.link ? `\nApply / details: ${opp.link}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    for (const s of students) {
+      try {
+        await emailDelivery.sendMail(s.email, `[EEWA] New opportunity: ${opp.title}`, body);
+      } catch (err) {
+        logger.warn('Opportunity verification email failed', { to: s.email, message: String(err) });
+      }
+    }
+  },
+});
+const opportunityController = createOpportunityController(opportunityService, auditService);
 const reportingService = createReportingService(prisma);
 const reportingController = createReportingController(reportingService);
 const adminController = createAdminController(prisma);
+const messagingRepo = createMessagingRepository(prisma);
+const messagingService = createMessagingService(messagingRepo, notificationListService);
+const messagingController = createMessagingController(messagingService);
 
 const app = express();
 
@@ -104,6 +151,9 @@ app.post('/api/auth/register', validate(registerSchema), (req, res, next) => {
 });
 app.post('/api/auth/login', validate(loginSchema), (req, res, next) => {
   authController.login(req, res).catch(next);
+});
+app.post('/api/auth/verify-email-otp', validate(emailOtpVerifySchema), (req, res, next) => {
+  authController.verifyEmailOtp(req, res).catch(next);
 });
 app.post('/api/auth/refresh', validate(refreshSchema), (req, res, next) => {
   authController.refresh(req, res).catch(next);
@@ -252,6 +302,42 @@ app.post('/api/notifications/read-all', authMiddleware(tokenService), (req, res,
   notificationListController.markAllRead(req, res).catch(next);
 });
 
+// ─── Messaging (Student ↔ Mentor, active mentorship only)
+const messagingRoles = ['Student', 'Mentor'] as const;
+app.get(
+  '/api/messages/eligible-peers',
+  authMiddleware(tokenService),
+  rbacMiddleware([...messagingRoles]),
+  (req, res, next) => messagingController.listEligiblePeers(req, res).catch(next)
+);
+app.get(
+  '/api/conversations',
+  authMiddleware(tokenService),
+  rbacMiddleware([...messagingRoles]),
+  (req, res, next) => messagingController.listConversations(req, res).catch(next)
+);
+app.post(
+  '/api/conversations',
+  authMiddleware(tokenService),
+  rbacMiddleware([...messagingRoles]),
+  validate(openConversationSchema),
+  (req, res, next) => messagingController.openConversation(req, res).catch(next)
+);
+app.get(
+  '/api/conversations/:id/messages',
+  authMiddleware(tokenService),
+  rbacMiddleware([...messagingRoles]),
+  validate(listMessagesQuerySchema),
+  (req, res, next) => messagingController.listMessages(req, res).catch(next)
+);
+app.post(
+  '/api/conversations/:id/messages',
+  authMiddleware(tokenService),
+  rbacMiddleware([...messagingRoles]),
+  validate(sendMessageSchema),
+  (req, res, next) => messagingController.sendMessage(req, res).catch(next)
+);
+
 app.get('/api/mentor/requests', authMiddleware(tokenService), rbacMiddleware(['Mentor']), (req, res, next) => {
   mentorController.listMyRequests(req, res).catch(next);
 });
@@ -313,6 +399,15 @@ app.patch(
   validate(opportunityVerifySchema),
   (req, res, next) => {
     opportunityController.verify(req, res).catch(next);
+  }
+);
+app.post(
+  '/api/opportunities/:id/apply',
+  authMiddleware(tokenService),
+  rbacMiddleware(['Student']),
+  validate(opportunityApplySchema),
+  (req, res, next) => {
+    opportunityController.apply(req, res).catch(next);
   }
 );
 

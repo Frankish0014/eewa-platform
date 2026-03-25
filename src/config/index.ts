@@ -11,10 +11,20 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  JWT_EMAIL_OTP_PENDING_EXPIRES_IN: z.string().default('15m'),
+  EMAIL_OTP_CODE_TTL_MINUTES: z.coerce.number().default(15),
+  EMAIL_OTP_RESEND_SECONDS: z.coerce.number().default(60),
   ENCRYPTION_KEY: z.string().length(64), // 32 bytes hex for AES-256
   SESSION_INACTIVITY_MINUTES: z.coerce.number().default(15),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'), // Vite default dev port
+  // Optional transactional email (opportunity verified, etc.)
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().optional(),
+  SMTP_SECURE: z.string().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

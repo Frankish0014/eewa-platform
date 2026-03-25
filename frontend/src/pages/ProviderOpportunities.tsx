@@ -26,6 +26,8 @@ export default function ProviderOpportunities() {
   const [formDescription, setFormDescription] = useState('');
   const [formLink, setFormLink] = useState('');
   const [formSectorId, setFormSectorId] = useState('');
+  const [formEligibility, setFormEligibility] = useState('');
+  const [formRequireMilestone, setFormRequireMilestone] = useState(false);
 
   useEffect(() => {
     if (user?.role !== 'OpportunityProvider') {
@@ -53,6 +55,8 @@ export default function ProviderOpportunities() {
         title: formTitle.trim(),
         description: formDescription.trim() || undefined,
         link: formLink.trim() || undefined,
+        eligibilityCriteria: formEligibility.trim() || undefined,
+        requireCompletedMilestone: formRequireMilestone,
       });
       const res = await getMyOpportunities();
       setOpportunities(res.opportunities);
@@ -60,6 +64,8 @@ export default function ProviderOpportunities() {
       setFormTitle('');
       setFormDescription('');
       setFormLink('');
+      setFormEligibility('');
+      setFormRequireMilestone(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create');
     } finally {
@@ -81,6 +87,8 @@ export default function ProviderOpportunities() {
         title,
         description: formDescription.trim() || undefined,
         link: formLink.trim() || undefined,
+        eligibilityCriteria: formEligibility.trim() || undefined,
+        requireCompletedMilestone: formRequireMilestone,
       });
       const res = await getMyOpportunities();
       setOpportunities(res.opportunities);
@@ -98,6 +106,8 @@ export default function ProviderOpportunities() {
     setFormDescription(opp.description ?? '');
     setFormLink(opp.link ?? '');
     setFormSectorId(opp.sectorId);
+    setFormEligibility(opp.eligibilityCriteria ?? '');
+    setFormRequireMilestone(opp.requireCompletedMilestone ?? false);
     setError(null);
   };
 
@@ -170,6 +180,24 @@ export default function ProviderOpportunities() {
                 placeholder="https://..."
               />
             </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label className={styles.label}>Eligibility criteria (optional)</label>
+              <textarea
+                className={styles.input}
+                value={formEligibility}
+                onChange={(e) => setFormEligibility(e.target.value)}
+                placeholder="Students must confirm they meet these requirements before applying."
+                rows={3}
+              />
+            </div>
+            <label style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={formRequireMilestone}
+                onChange={(e) => setFormRequireMilestone(e.target.checked)}
+              />
+              <span>Require at least one completed milestone (same sector)</span>
+            </label>
             <button type="submit" className={adminStyles.btnPrimary} disabled={submitting}>
               {submitting ? 'Creating…' : 'Create opportunity'}
             </button>
@@ -288,6 +316,23 @@ export default function ProviderOpportunities() {
                   placeholder="https://..."
                 />
               </div>
+              <div style={{ marginBottom: '1rem' }}>
+                <label className={styles.label}>Eligibility criteria (optional)</label>
+                <textarea
+                  className={styles.input}
+                  value={formEligibility}
+                  onChange={(e) => setFormEligibility(e.target.value)}
+                  rows={3}
+                />
+              </div>
+              <label style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={formRequireMilestone}
+                  onChange={(e) => setFormRequireMilestone(e.target.checked)}
+                />
+                <span>Require at least one completed milestone (same sector)</span>
+              </label>
               <button type="submit" className={adminStyles.btnPrimary} disabled={submitting}>
                 {submitting ? 'Saving…' : 'Save changes'}
               </button>

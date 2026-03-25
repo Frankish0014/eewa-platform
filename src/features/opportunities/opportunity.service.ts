@@ -1,13 +1,18 @@
 /**
- * Opportunity service — create, list verified, admin verify/reject.
+ * Opportunity service — create, list verified, admin verify/reject, student apply.
  */
-import type { OpportunityDto, CreateOpportunityData, UpdateOpportunityData } from './opportunity.repository';
-import type { OpportunityRepository } from './opportunity.repository';
-import { NotFoundError } from '../../core/errors';
+import { OpportunityStatus, Prisma } from '@prisma/client';
+import type { OpportunityDto, CreateOpportunityData, UpdateOpportunityData, OpportunityRepository } from './opportunity.repository';
+import { NotFoundError, ForbiddenError, ConflictError } from '../../core/errors';
 
 export type OpportunityService = ReturnType<typeof createOpportunityService>;
 
-export function createOpportunityService(repo: OpportunityRepository) {
+export function createOpportunityService(
+  repo: OpportunityRepository,
+  options?: {
+    onOpportunityVerified?: (opp: OpportunityDto) => Promise<void>;
+  }
+) {
   return {
     async create(providerId: string, data: CreateOpportunityData): Promise<OpportunityDto> {
       return repo.create(providerId, data);
@@ -36,7 +41,69 @@ export function createOpportunityService(repo: OpportunityRepository) {
     },
 
     async verify(id: string, adminId: string, approve: boolean): Promise<OpportunityDto> {
-      return repo.verify(id, adminId, approve);
+      const dto = await repo.verify(id, adminId, approve);
+      if (approve && dto.status === OpportunityStatus.VERIFIED && options?.onOpportunityVerified) {
+        await options.onOpportunityVerified(dto);
+      }
+      return dto;
+    },
+
+    async apply(
+      opportunityId: string,
+      studentId: string,
+      studentRole: string,
+      body: {
+        primaryProjectId?: string;
+        message?: string;
+        eligibilityAcknowledged?: boolean;
+      }
+    ) {
+      if (studentRole !== 'Student') {
+        throw new ForbiddenError('Only students can apply to opportunities');
+      }
+      const opp = await repo.findById(opportunityId);
+      if (!opp) throw new NotFoundError('Opportunity');
+      if (opp.status !== 'VERIFIED') {
+        throw new ForbiddenError('This opportunity is not open for applications');
+      }
+
+      const existing = await repo.findApplication(opportunityId, studentId);
+      if (existing) {
+        throw new ConflictError('You have already applied to this opportunity');
+      }
+
+      const project = await repo.resolveApplyProject(studentId, opp.sectorId, body.primaryProjectId ?? null);
+      if (!project) {
+        throw new ForbiddenError(
+          'You need a venture in this opportunity’s sector to apply. Create or select a matching project.'
+        );
+      }
+
+      if (opp.requireCompletedMilestone) {
+        const ok = await repo.projectHasCompletedMilestone(project.id);
+        if (!ok) {
+          throw new ForbiddenError('This opportunity requires at least one completed milestone on your venture in this sector.');
+        }
+      }
+
+      const criteria = opp.eligibilityCriteria?.trim();
+      if (criteria && !body.eligibilityAcknowledged) {
+        throw new ForbiddenError('Please confirm you meet the eligibility criteria listed for this opportunity.');
+      }
+
+      try {
+        return await repo.createApplication({
+          opportunityId,
+          studentId,
+          primaryProjectId: project.id,
+          message: body.message,
+        });
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+          throw new ConflictError('You have already applied to this opportunity');
+        }
+        throw e;
+      }
     },
   };
 }

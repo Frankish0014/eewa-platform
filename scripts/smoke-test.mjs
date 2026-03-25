@@ -72,6 +72,7 @@ async function main() {
       body: JSON.stringify({
         email: 'admin@eewa.dev',
         password: 'AdminPassword1!',
+        deviceToken: 'eewa-api-test-trusted-device-token-fixed-value',
       }),
     });
     if (ok && status === 200 && body?.accessToken) {

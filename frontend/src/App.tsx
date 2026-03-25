@@ -17,6 +17,7 @@ import MentorProfile from './pages/MentorProfile';
 import MentorRequests from './pages/MentorRequests';
 import NotificationsPage from './pages/NotificationsPage';
 import ReportsSummary from './pages/ReportsSummary';
+import MessagesPage from './pages/MessagesPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('accessToken');
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="mentor/profile" element={<MentorProfile />} />
         <Route path="mentor/requests" element={<MentorRequests />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="messages" element={<MessagesPage />} />
         <Route path="opportunities" element={<Opportunities />} />
         <Route path="admin/opportunities" element={<AdminOpportunities />} />
         <Route path="admin/users" element={<AdminUsers />} />

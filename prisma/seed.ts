@@ -2,8 +2,12 @@
  * Seed: Admin user + Sectors for projects.
  * Run: npx prisma db seed
  */
+import { createHash } from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+
+/** Matches integration test + smoke-test login body (dev only — skip email OTP for automation). */
+export const SEED_DEV_TRUSTED_DEVICE_TOKEN = 'eewa-api-test-trusted-device-token-fixed-value';
 
 const prisma = new PrismaClient();
 
@@ -37,6 +41,17 @@ async function main() {
     update: {},
   });
   console.log('Seeded admin user:', ADMIN_EMAIL, '(password:', ADMIN_PASSWORD, ')');
+
+  const admin = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
+  if (admin) {
+    const tokenHash = createHash('sha256').update(SEED_DEV_TRUSTED_DEVICE_TOKEN, 'utf8').digest('hex');
+    await prisma.trustedDevice.upsert({
+      where: { userId_tokenHash: { userId: admin.id, tokenHash } },
+      create: { userId: admin.id, tokenHash },
+      update: {},
+    });
+    console.log('Seeded dev trusted device for admin (automation / smoke-test login)');
+  }
 
   for (const s of SECTORS) {
     await prisma.sector.upsert({

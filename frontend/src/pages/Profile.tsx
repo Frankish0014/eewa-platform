@@ -25,13 +25,14 @@ export default function ProfilePage() {
     loadProfile();
   }, []);
 
-  const handleUpdate = async (data: { firstName: string; lastName: string }) => {
+  const handleUpdate = async (data: { firstName: string; lastName: string; skills?: string }) => {
     setSubmitting(true);
     setError(null);
     try {
       const { profile: updated } = await updateProfile({
         firstName: data.firstName.trim(),
         lastName: data.lastName.trim(),
+        ...(data.skills !== undefined && { skills: data.skills.trim() ? data.skills.trim() : null }),
       });
       setProfile(updated);
       setShowEditModal(false);
@@ -95,6 +96,8 @@ export default function ProfilePage() {
           <dd>{profile.email}</dd>
           <dt>Role</dt>
           <dd>{profile.role}</dd>
+          <dt>Skills & interests</dt>
+          <dd style={{ whiteSpace: 'pre-wrap' }}>{profile.skills?.trim() ? profile.skills : '—'}</dd>
           {profile.institutionName && (
             <>
               <dt>Institution</dt>
@@ -105,6 +108,14 @@ export default function ProfilePage() {
             </>
           )}
         </dl>
+      </div>
+
+      <div className={profileStyles.card} style={{ marginTop: '1.5rem' }}>
+        <h3 className={styles.pageTitle} style={{ fontSize: '1.1rem' }}>Sign-in security</h3>
+        <p className={styles.pageSubtitle} style={{ marginTop: '0.5rem' }}>
+          When you sign in from a new browser or device, EEWA emails you a one-time code after your password.
+          This device is remembered until you sign out (then the next sign-in may require a code again).
+        </p>
       </div>
 
       {showEditModal && (

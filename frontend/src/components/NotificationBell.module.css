@@ -115,6 +115,11 @@
   background: var(--accent-muted);
 }
 
+.messageTag {
+  font-weight: 500;
+  opacity: 0.9;
+}
+
 .itemTitle {
   display: block;
   font-size: 0.875rem;

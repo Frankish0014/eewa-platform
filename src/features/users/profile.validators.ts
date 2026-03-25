@@ -13,9 +13,20 @@ const optionalTrimmedString = z
     return t.length > 0 ? t : undefined;
   });
 
+const optionalSkills = z
+  .string()
+  .max(4000)
+  .optional()
+  .transform((s) => {
+    if (s === undefined) return undefined;
+    const t = s.trim();
+    return t.length === 0 ? null : t;
+  });
+
 export const updateProfileSchema = z.object({
   body: z.object({
     firstName: optionalTrimmedString,
     lastName: optionalTrimmedString,
+    skills: optionalSkills,
   }),
 });

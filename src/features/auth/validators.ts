@@ -3,9 +3,14 @@
  */
 import { z } from 'zod';
 
+const sixDigitCodeSchema = z
+  .string()
+  .transform((s) => s.replace(/\s/g, ''))
+  .pipe(z.string().min(6, 'Enter the 6-digit code').max(12));
+
 const passwordSchema = z
   .string()
-  .min(8, 'Password must be at least 8 characters')
+  .min(12, 'Password must be at least 12 characters')
   .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
   .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
   .regex(/[0-9]/, 'Password must contain at least one number');
@@ -13,7 +18,15 @@ const passwordSchema = z
 export const loginSchema = z.object({
   body: z.object({
     email: z.string().email('Valid email required'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password: z.string().min(1, 'Password required'),
+    deviceToken: z.string().min(32).max(128).optional(),
+  }),
+});
+
+export const emailOtpVerifySchema = z.object({
+  body: z.object({
+    emailOtpToken: z.string().min(1, 'Verification token required'),
+    code: sixDigitCodeSchema,
   }),
 });
 

@@ -6,6 +6,8 @@ export const opportunityCreateSchema = z.object({
     title: z.string().min(1, 'Title required').max(300),
     description: z.string().max(5000).optional(),
     link: z.string().url().optional().or(z.literal('')),
+    eligibilityCriteria: z.string().max(5000).optional(),
+    requireCompletedMilestone: z.boolean().optional(),
   }),
 });
 
@@ -15,6 +17,16 @@ export const opportunityUpdateSchema = z.object({
     title: z.string().min(1, 'Title required').max(300).optional(),
     description: z.string().max(5000).optional(),
     link: z.string().url().optional().or(z.literal('')),
+    eligibilityCriteria: z.string().max(5000).optional(),
+    requireCompletedMilestone: z.boolean().optional(),
+  }),
+});
+
+export const opportunityApplySchema = z.object({
+  body: z.object({
+    primaryProjectId: z.string().min(1).optional(),
+    message: z.string().max(2000).optional(),
+    eligibilityAcknowledged: z.boolean().optional(),
   }),
 });
 

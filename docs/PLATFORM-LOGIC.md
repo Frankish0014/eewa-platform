@@ -112,8 +112,31 @@ This document describes the end-to-end logic of the EEWA platform: roles, flows,
 - **Student requests mentor**: Mentor gets MENTOR_REQUEST; student gets MENTOR_REQUESTED (link includes mentorAssignmentId).
 - **Mentor accepts**: Student gets MENTOR_ACCEPTED (link to projects).
 - **Mentor declines**: Student gets MENTOR_DECLINED (link to mentors).
+- **New mentorship message**: Recipient gets `MESSAGE_RECEIVED` (“New message” + preview); link opens **Messages** with `?conversationId=…`. Bell shows a 💬 prefix for this type.
 
 Links include query params (e.g. `mentorAssignmentId`) for deduplication in backfill.
+
+---
+
+## 6a. Secure messaging (mentor ↔ student)
+
+### Rules
+- Only **Student** and **Mentor** roles can use messaging APIs and the **Messages** page.
+- A user may message another user only if there is an **`ACTIVE` `MentorAssignment`** between them (student as `menteeId`, mentor via `MentorProfile.userId`).
+- Conversations are **1:1** (two participants). Opening a chat with the same peer reuses the existing conversation.
+
+### Storage
+- **`Message.bodyEnc`**: AES-256-GCM ciphertext using app **`ENCRYPTION_KEY`** (same 32-byte hex key as other encrypted fields).
+
+### APIs
+- **GET /api/messages/eligible-peers**: Lists active mentorship peers (mentor user or mentee user) with project context; used to start a thread.
+- **GET /api/conversations**: Lists conversations for the current user with last-message preview and unread counts.
+- **POST /api/conversations**: Body `{ peerUserId }`. Opens or returns existing direct conversation id `{ conversationId }`.
+- **GET /api/conversations/:id/messages**: Query `limit` (optional), `before` (optional ISO cursor). Marks inbound messages as read for the current user.
+- **POST /api/conversations/:id/messages**: Body `{ body }` (1–10000 chars). Sends a message.
+
+### Frontend
+- **`/messages`**: Conversation list + thread + composer; nav link for Student and Mentor.
 
 ---
 
@@ -173,6 +196,7 @@ Links include query params (e.g. `mentorAssignmentId`) for deduplication in back
 | /mentor/profile | Mentor | Mentor profile (sectors, bio, maxMentees, isActive). |
 | /mentor/requests | Mentor | List mentorship requests; accept/decline. |
 | /notifications | All | Full notifications list; mark read. |
+| /messages | Student, Mentor | Secure messaging with active mentorship peers. |
 | /opportunities | Student, Mentor | List verified opportunities (optional sector filter). |
 | /admin/opportunities | Admin | Pending opportunities; verify/reject. |
 | /admin/users | Admin | Users list. |
