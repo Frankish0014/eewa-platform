@@ -64,6 +64,13 @@ Optional: in the repo root, `render.yaml` can create the web service skeleton; y
 - `https://your-url/api/health` returns OK.
 - Sign-in / main flows work.
 
+### Render troubleshooting
+
+- **“We don't have access to your repo”** in build logs: install or reconnect the [Render GitHub App](https://render.com/docs/github) and grant access to **Frankish0014/eewa-platform** (GitHub → **Settings → Integrations → Applications** → Configure Render → Repository access).
+- **Docker `npm ci` failed on `prepare` / `ensure-git-hooks`**: fixed in-repo by skipping git-hook setup when **`DOCKER_BUILD=1`** during image build; use the latest `Dockerfile` and `scripts/run-prepare.cjs`.
+- **Peer dependency / Vite errors on frontend build**: frontend needs **`@vitejs/plugin-react`** major version that matches **Vite 8** (see `frontend/package.json`).
+- **Cold start on free tier**: the service can sleep; first request may take ~50s+.
+
 ---
 
 ## Docker Compose (API + Postgres + SPA)

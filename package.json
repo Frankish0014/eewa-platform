@@ -6,7 +6,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
-    "prepare": "node scripts/ensure-git-hooks.cjs",
+    "prepare": "node scripts/run-prepare.cjs",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
@@ -28,7 +28,7 @@
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.0",
     "nodemailer": "^8.0.3",
-    "prisma": "^6.19.2",
+    "prisma": "^7.6.0",
     "winston": "^3.14.0",
     "zod": "^3.23.0"
   },
