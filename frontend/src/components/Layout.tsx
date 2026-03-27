@@ -145,7 +145,7 @@ export default function Layout() {
                 </Link>
               </>
             )}
-            {user?.role === 'OpportunityProvider' && (
+            {(user?.role === 'OpportunityProvider' || user?.role === 'InstitutionStaff') && (
               <>
                 <Link
                   to="/provider/opportunities"

@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: eewa
+      POSTGRES_PASSWORD: eewa
+      POSTGRES_DB: eewa
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U eewa -d eewa']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      - '${HOST_PORT:-3001}:3001'
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://eewa:eewa@db:5432/eewa
+      STATIC_FILES_DIR: /app/public
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

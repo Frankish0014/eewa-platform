@@ -11,6 +11,9 @@ export default function ProfilePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [otpEnabledDraft, setOtpEnabledDraft] = useState(false);
+  const [otpPassword, setOtpPassword] = useState('');
+  const [securitySubmitting, setSecuritySubmitting] = useState(false);
 
   const loadProfile = () => {
     setLoading(true);
@@ -24,6 +27,31 @@ export default function ProfilePage() {
   useEffect(() => {
     loadProfile();
   }, []);
+
+  useEffect(() => {
+    if (profile) setOtpEnabledDraft(profile.emailSignInOtpEnabled);
+  }, [profile]);
+
+  const otpSettingDirty =
+    profile != null && otpEnabledDraft !== profile.emailSignInOtpEnabled;
+
+  const handleSaveSignInSecurity = async () => {
+    if (!profile || !otpSettingDirty) return;
+    setSecuritySubmitting(true);
+    setError(null);
+    try {
+      const { profile: updated } = await updateProfile({
+        emailSignInOtpEnabled: otpEnabledDraft,
+        currentPassword: otpPassword,
+      });
+      setProfile(updated);
+      setOtpPassword('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update sign-in security');
+    } finally {
+      setSecuritySubmitting(false);
+    }
+  };
 
   const handleUpdate = async (data: { firstName: string; lastName: string; skills?: string }) => {
     setSubmitting(true);
@@ -111,11 +139,59 @@ export default function ProfilePage() {
       </div>
 
       <div className={profileStyles.card} style={{ marginTop: '1.5rem' }}>
-        <h3 className={styles.pageTitle} style={{ fontSize: '1.1rem' }}>Sign-in security</h3>
+        <h3 className={styles.pageTitle} style={{ fontSize: '1.1rem' }}>
+          Sign-in security
+        </h3>
         <p className={styles.pageSubtitle} style={{ marginTop: '0.5rem' }}>
-          When you sign in from a new browser or device, EEWA emails you a one-time code after your password.
-          This device is remembered until you sign out (then the next sign-in may require a code again).
+          Turn on email verification if you want a one-time code sent to your address when you sign in from a new
+          browser or device (after your password). While this is off, a correct password is enough on a new device.
+          In development, the code is also printed in the API logs when SMTP is not configured.
         </p>
+        <label className={profileStyles.checkboxRow}>
+          <input
+            type="checkbox"
+            checked={otpEnabledDraft}
+            onChange={(e) => setOtpEnabledDraft(e.target.checked)}
+            disabled={securitySubmitting}
+          />
+          <span>Require email code on new sign-ins</span>
+        </label>
+        {otpSettingDirty && (
+          <div className={profileStyles.securityFields}>
+            <label className={profileStyles.securityLabel}>
+              Current password (required to confirm)
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={otpPassword}
+                onChange={(e) => setOtpPassword(e.target.value)}
+                disabled={securitySubmitting}
+                className={profileStyles.securityInput}
+              />
+            </label>
+            <div className={profileStyles.securityActions}>
+              <button
+                type="button"
+                className={styles.editBtn}
+                disabled={securitySubmitting || !otpPassword.trim()}
+                onClick={() => void handleSaveSignInSecurity()}
+              >
+                {securitySubmitting ? 'Saving…' : 'Save sign-in setting'}
+              </button>
+              <button
+                type="button"
+                className={profileStyles.cancelBtn}
+                disabled={securitySubmitting}
+                onClick={() => {
+                  setOtpEnabledDraft(profile.emailSignInOtpEnabled);
+                  setOtpPassword('');
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {showEditModal && (

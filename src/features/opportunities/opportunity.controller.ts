@@ -37,6 +37,13 @@ export function createOpportunityController(opportunityService: OpportunityServi
       res.json({ opportunities: list });
     },
 
+    async listApplications(req: Request, res: Response): Promise<void> {
+      const user = (req as Request & { user?: AuthenticatedRequest }).user!;
+      const { id } = req.params;
+      const applications = await opportunityService.listApplicationsForProvider(id, user.userId);
+      res.json({ applications });
+    },
+
     async getById(req: Request, res: Response): Promise<void> {
       const { id } = req.params;
       const opp = await opportunityService.getById(id);

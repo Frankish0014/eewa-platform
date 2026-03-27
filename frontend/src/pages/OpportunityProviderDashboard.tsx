@@ -12,6 +12,7 @@ import adminStyles from './Admin.module.css';
 
 export default function OpportunityProviderDashboard() {
   const { user } = useAuth();
+  const isInstitution = user?.role === 'InstitutionStaff';
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [overview, setOverview] = useState<VenturesOverview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,15 +39,21 @@ export default function OpportunityProviderDashboard() {
 
   return (
     <div>
-      <h1 className={styles.pageTitle}>Opportunity provider dashboard</h1>
+      <h1 className={styles.pageTitle}>
+        {isInstitution ? 'Institution partner dashboard' : 'Opportunity provider dashboard'}
+      </h1>
       <p className={styles.pageSubtitle}>
-        Serve entrepreneurs on the platform — post opportunities and discover ventures.
+        {isInstitution
+          ? 'Represent your university, hub, or program — publish funding and program opportunities, review applications, and track ecosystem impact alongside platform reports.'
+          : 'Serve entrepreneurs on the platform — post opportunities and discover ventures.'}
       </p>
 
       <div className={styles.hero}>
         <h2>Welcome back, {user?.email}</h2>
         <p className={styles.welcome}>
-          Use this dashboard to manage your opportunities and explore ventures created by entrepreneurs on EEWA.
+          {isInstitution
+            ? 'Post opportunities for ventures in your focus areas (they go live after admin verification). Review applicant submissions and browse entrepreneur ventures by sector. Use Reports for aggregate insight across EEWA.'
+            : 'Use this dashboard to manage your opportunities and explore ventures created by entrepreneurs on EEWA.'}
         </p>
       </div>
 
@@ -55,6 +62,7 @@ export default function OpportunityProviderDashboard() {
         <ul className={styles.links}>
           <li><Link to="/provider/opportunities">My opportunities</Link></li>
           <li><Link to="/provider/entrepreneurs">Browse entrepreneurs</Link></li>
+          {isInstitution && <li><Link to="/reports">Reports overview</Link></li>}
           <li><Link to="/profile">My profile</Link></li>
         </ul>
       </section>

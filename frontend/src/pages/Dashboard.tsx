@@ -18,7 +18,7 @@ function getRoleLabel(role: string) {
 export default function Dashboard() {
   const { user } = useAuth();
 
-  if (user?.role === 'OpportunityProvider') {
+  if (user?.role === 'OpportunityProvider' || user?.role === 'InstitutionStaff') {
     return <OpportunityProviderDashboard />;
   }
 
@@ -52,11 +52,6 @@ export default function Dashboard() {
               <li><Link to="/profile">My profile</Link></li>
               <li><Link to="/projects">My ventures</Link></li>
               <li><Link to="/messages">Messages</Link></li>
-            </>
-          )}
-          {user?.role === 'InstitutionStaff' && (
-            <>
-              <li><Link to="/reports">Reports overview</Link></li>
             </>
           )}
           {user?.role === 'Admin' && (

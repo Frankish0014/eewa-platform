@@ -65,6 +65,7 @@ import {
   sendMessageSchema,
   listMessagesQuerySchema,
 } from './features/messaging';
+import { attachStaticFrontend } from './static-frontend';
 
 const prisma = new PrismaClient();
 const tokenService = createTokenService();
@@ -79,7 +80,7 @@ const authService = createAuthService({
   auditService: auditServiceEarly,
 });
 const authController = createAuthController(authService);
-const profileService = createProfileService(prisma);
+const profileService = createProfileService(prisma, auditServiceEarly);
 const projectRepo = createProjectRepository(prisma);
 const projectService = createProjectService(projectRepo);
 const projectController = createProjectController(projectService, auditServiceEarly);
@@ -365,13 +366,26 @@ app.post(
 app.get('/api/opportunities', authMiddleware(tokenService), (req, res, next) => {
   opportunityController.listVerified(req, res).catch(next);
 });
-app.get('/api/opportunities/mine', authMiddleware(tokenService), rbacMiddleware(['OpportunityProvider']), (req, res, next) => {
-  opportunityController.listMine(req, res).catch(next);
-});
+app.get(
+  '/api/opportunities/mine',
+  authMiddleware(tokenService),
+  rbacMiddleware(['OpportunityProvider', 'InstitutionStaff']),
+  (req, res, next) => {
+    opportunityController.listMine(req, res).catch(next);
+  }
+);
+app.get(
+  '/api/opportunities/:id/applications',
+  authMiddleware(tokenService),
+  rbacMiddleware(['OpportunityProvider', 'InstitutionStaff']),
+  (req, res, next) => {
+    opportunityController.listApplications(req, res).catch(next);
+  }
+);
 app.post(
   '/api/opportunities',
   authMiddleware(tokenService),
-  rbacMiddleware(['OpportunityProvider']),
+  rbacMiddleware(['OpportunityProvider', 'InstitutionStaff']),
   validate(opportunityCreateSchema),
   (req, res, next) => {
     opportunityController.create(req, res).catch(next);
@@ -380,15 +394,20 @@ app.post(
 app.patch(
   '/api/opportunities/:id',
   authMiddleware(tokenService),
-  rbacMiddleware(['OpportunityProvider']),
+  rbacMiddleware(['OpportunityProvider', 'InstitutionStaff']),
   validate(opportunityUpdateSchema),
   (req, res, next) => {
     opportunityController.update(req, res).catch(next);
   }
 );
-app.get('/api/provider/ventures-overview', authMiddleware(tokenService), rbacMiddleware(['OpportunityProvider']), (req, res, next) => {
-  adminController.listVenturesOverview(req, res).catch(next);
-});
+app.get(
+  '/api/provider/ventures-overview',
+  authMiddleware(tokenService),
+  rbacMiddleware(['OpportunityProvider', 'InstitutionStaff']),
+  (req, res, next) => {
+    adminController.listVenturesOverview(req, res).catch(next);
+  }
+);
 app.get('/api/opportunities/pending', authMiddleware(tokenService), rbacMiddleware(['Admin']), (req, res, next) => {
   opportunityController.listPending(req, res).catch(next);
 });
@@ -415,6 +434,8 @@ app.post(
 app.get('/api/reports/summary', authMiddleware(tokenService), rbacMiddleware(['Admin', 'InstitutionStaff']), (req, res, next) => {
   reportingController.getSummary(req, res).catch(next);
 });
+
+attachStaticFrontend(app);
 
 app.use(errorHandler(logger));
 

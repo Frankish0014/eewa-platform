@@ -9,6 +9,7 @@
     "prepare": "node scripts/ensure-git-hooks.cjs",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
+    "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "test": "ts-node --transpile-only test/api.test.ts",
     "smoke-test": "node scripts/smoke-test.mjs"
@@ -27,6 +28,7 @@
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.0",
     "nodemailer": "^8.0.3",
+    "prisma": "^6.19.2",
     "winston": "^3.14.0",
     "zod": "^3.23.0"
   },
@@ -38,7 +40,6 @@
     "@types/node": "^20.0.0",
     "@types/nodemailer": "^7.0.11",
     "@types/supertest": "^7.2.0",
-    "prisma": "^6.19.2",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.0",
     "typescript": "^5.0.0"

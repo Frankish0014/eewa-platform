@@ -17,7 +17,9 @@ const envSchema = z.object({
   ENCRYPTION_KEY: z.string().length(64), // 32 bytes hex for AES-256
   SESSION_INACTIVITY_MINUTES: z.coerce.number().default(15),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
-  CORS_ORIGIN: z.string().default('http://localhost:5173'), // Vite default dev port
+  CORS_ORIGIN: z.string().default('http://localhost:5173'), // Vite default dev port; in prod use your public site URL
+  /** Absolute or relative path to Vite `dist` (e.g. ./public in Docker). Empty = API-only. */
+  STATIC_FILES_DIR: z.string().optional(),
   // Optional transactional email (opportunity verified, etc.)
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().optional(),

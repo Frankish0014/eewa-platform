@@ -11,6 +11,7 @@ export interface UserForAuth {
   email: string;
   role: string;
   passwordHash: string | null;
+  emailSignInOtpEnabled: boolean;
 }
 
 export interface CreateUserInput {
@@ -35,7 +36,7 @@ export function createAuthRepository(prisma: PrismaClient): AuthRepository {
     async findByEmail(email: string) {
       const user = await prisma.user.findUnique({
         where: { email: email.toLowerCase() },
-        select: { id: true, email: true, role: true, passwordHash: true },
+        select: { id: true, email: true, role: true, passwordHash: true, emailSignInOtpEnabled: true },
       });
       return user;
     },
@@ -43,7 +44,7 @@ export function createAuthRepository(prisma: PrismaClient): AuthRepository {
     async findById(id: string) {
       const user = await prisma.user.findUnique({
         where: { id },
-        select: { id: true, email: true, role: true, passwordHash: true },
+        select: { id: true, email: true, role: true, passwordHash: true, emailSignInOtpEnabled: true },
       });
       return user;
     },
@@ -58,7 +59,7 @@ export function createAuthRepository(prisma: PrismaClient): AuthRepository {
           role: input.role as 'Student' | 'Mentor' | 'Admin' | 'InstitutionStaff' | 'OpportunityProvider',
           ...(input.institutionId && { institutionId: input.institutionId }),
         },
-        select: { id: true, email: true, role: true, passwordHash: true },
+        select: { id: true, email: true, role: true, passwordHash: true, emailSignInOtpEnabled: true },
       });
       return user;
     },

@@ -45,7 +45,34 @@ export interface OpportunityApplicationDto {
   studentId: string;
   primaryProjectId: string | null;
   message: string | null;
+  whyFit: string | null;
+  experienceSummary: string | null;
+  outcomesSought: string | null;
+  supportNeeded: string | null;
+  ventureStage: string | null;
+  proofSummary: string | null;
+  proofLinks: string | null;
   createdAt: string;
+}
+
+export interface OpportunityApplicationListItemDto {
+  id: string;
+  opportunityId: string;
+  createdAt: string;
+  studentId: string;
+  studentFirstName: string;
+  studentLastName: string;
+  studentEmail: string;
+  primaryProjectId: string | null;
+  primaryProjectTitle: string | null;
+  whyFit: string | null;
+  experienceSummary: string | null;
+  outcomesSought: string | null;
+  supportNeeded: string | null;
+  ventureStage: string | null;
+  proofSummary: string | null;
+  proofLinks: string | null;
+  message: string | null;
 }
 
 export function createOpportunityRepository(prisma: PrismaClient) {
@@ -183,6 +210,13 @@ export function createOpportunityRepository(prisma: PrismaClient) {
       studentId: string;
       primaryProjectId: string | null;
       message?: string | null;
+      whyFit?: string | null;
+      experienceSummary?: string | null;
+      outcomesSought?: string | null;
+      supportNeeded?: string | null;
+      ventureStage?: string | null;
+      proofSummary?: string | null;
+      proofLinks?: string | null;
     }): Promise<OpportunityApplicationDto> {
       const row = await prisma.opportunityApplication.create({
         data: {
@@ -190,9 +224,57 @@ export function createOpportunityRepository(prisma: PrismaClient) {
           studentId: input.studentId,
           primaryProjectId: input.primaryProjectId,
           message: input.message?.trim() ? input.message.trim() : null,
+          whyFit: input.whyFit?.trim() ? input.whyFit.trim() : null,
+          experienceSummary: input.experienceSummary?.trim() ? input.experienceSummary.trim() : null,
+          outcomesSought: input.outcomesSought?.trim() ? input.outcomesSought.trim() : null,
+          supportNeeded: input.supportNeeded?.trim() ? input.supportNeeded.trim() : null,
+          ventureStage: input.ventureStage?.trim() ? input.ventureStage.trim() : null,
+          proofSummary: input.proofSummary?.trim() ? input.proofSummary.trim() : null,
+          proofLinks: input.proofLinks?.trim() ? input.proofLinks.trim() : null,
         },
       });
       return applicationToDto(row);
+    },
+
+    async listApplicationsForProviderOpportunity(
+      opportunityId: string,
+      providerId: string
+    ): Promise<OpportunityApplicationListItemDto[]> {
+      const opp = await prisma.opportunity.findUnique({
+        where: { id: opportunityId },
+        select: { providerId: true },
+      });
+      if (!opp) throw new NotFoundError('Opportunity');
+      if (opp.providerId !== providerId) throw new ForbiddenError('Not the opportunity provider');
+
+      const rows = await prisma.opportunityApplication.findMany({
+        where: { opportunityId },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          student: { select: { id: true, firstName: true, lastName: true, email: true } },
+          primaryProject: { select: { id: true, title: true } },
+        },
+      });
+
+      return rows.map((r) => ({
+        id: r.id,
+        opportunityId: r.opportunityId,
+        createdAt: r.createdAt.toISOString(),
+        studentId: r.student.id,
+        studentFirstName: r.student.firstName,
+        studentLastName: r.student.lastName,
+        studentEmail: r.student.email,
+        primaryProjectId: r.primaryProjectId,
+        primaryProjectTitle: r.primaryProject?.title ?? null,
+        whyFit: r.whyFit,
+        experienceSummary: r.experienceSummary,
+        outcomesSought: r.outcomesSought,
+        supportNeeded: r.supportNeeded,
+        ventureStage: r.ventureStage,
+        proofSummary: r.proofSummary,
+        proofLinks: r.proofLinks,
+        message: r.message,
+      }));
     },
   };
 }
@@ -205,6 +287,13 @@ function applicationToDto(row: {
   studentId: string;
   primaryProjectId: string | null;
   message: string | null;
+  whyFit: string | null;
+  experienceSummary: string | null;
+  outcomesSought: string | null;
+  supportNeeded: string | null;
+  ventureStage: string | null;
+  proofSummary: string | null;
+  proofLinks: string | null;
   createdAt: Date;
 }): OpportunityApplicationDto {
   return {
@@ -213,6 +302,13 @@ function applicationToDto(row: {
     studentId: row.studentId,
     primaryProjectId: row.primaryProjectId,
     message: row.message,
+    whyFit: row.whyFit,
+    experienceSummary: row.experienceSummary,
+    outcomesSought: row.outcomesSought,
+    supportNeeded: row.supportNeeded,
+    ventureStage: row.ventureStage,
+    proofSummary: row.proofSummary,
+    proofLinks: row.proofLinks,
     createdAt: row.createdAt.toISOString(),
   };
 }

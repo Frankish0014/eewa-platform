@@ -228,6 +228,8 @@ export interface Profile {
   firstName: string;
   lastName: string;
   skills: string | null;
+  /** When true, new browsers/devices require email code after password. */
+  emailSignInOtpEnabled: boolean;
   institutionName?: string;
   institutionCountry?: string;
   createdAt: string;
@@ -241,6 +243,8 @@ export async function updateProfile(data: {
   firstName?: string;
   lastName?: string;
   skills?: string | null;
+  emailSignInOtpEnabled?: boolean;
+  currentPassword?: string;
 }): Promise<{ profile: Profile }> {
   return api.patch<{ profile: Profile }>('/api/profile', data);
 }
@@ -522,20 +526,55 @@ export type UpdateOpportunityInput = {
   requireCompletedMilestone?: boolean;
 };
 
+export type VentureStageOption = 'IDEA' | 'PROTOTYPE' | 'MVP' | 'REVENUE' | 'SCALING' | 'OTHER';
+
 export interface OpportunityApplication {
   id: string;
   opportunityId: string;
   studentId: string;
   primaryProjectId: string | null;
   message: string | null;
+  whyFit: string | null;
+  experienceSummary: string | null;
+  outcomesSought: string | null;
+  supportNeeded: string | null;
+  ventureStage: string | null;
+  proofSummary: string | null;
+  proofLinks: string | null;
   createdAt: string;
+}
+
+export interface OpportunityApplicationListItem extends OpportunityApplication {
+  studentFirstName: string;
+  studentLastName: string;
+  studentEmail: string;
+  primaryProjectTitle: string | null;
 }
 
 export async function applyToOpportunity(
   opportunityId: string,
-  body: { primaryProjectId?: string; message?: string; eligibilityAcknowledged?: boolean }
+  body: {
+    primaryProjectId?: string;
+    message?: string;
+    eligibilityAcknowledged?: boolean;
+    whyFit: string;
+    experienceSummary?: string;
+    outcomesSought?: string;
+    supportNeeded?: string;
+    ventureStage?: VentureStageOption;
+    proofSummary?: string;
+    proofLinks?: string;
+  }
 ): Promise<{ application: OpportunityApplication }> {
   return api.post<{ application: OpportunityApplication }>(`/api/opportunities/${opportunityId}/apply`, body);
+}
+
+export async function getOpportunityApplications(
+  opportunityId: string
+): Promise<{ applications: OpportunityApplicationListItem[] }> {
+  return api.get<{ applications: OpportunityApplicationListItem[] }>(
+    `/api/opportunities/${opportunityId}/applications`
+  );
 }
 
 export async function updateOpportunity(id: string, data: UpdateOpportunityInput): Promise<{ opportunity: Opportunity }> {

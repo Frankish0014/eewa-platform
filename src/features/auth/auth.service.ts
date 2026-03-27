@@ -73,10 +73,22 @@ async function pruneTrustedDevicesIfNeeded(prisma: PrismaClient, userId: string)
 
 function issueSession(
   tokenService: TokenService,
-  user: { id: string; email: string; role: string; passwordHash: string | null },
+  user: {
+    id: string;
+    email: string;
+    role: string;
+    passwordHash: string | null;
+    emailSignInOtpEnabled?: boolean;
+  },
   deviceToken: string
 ) {
-  const u = { id: user.id, email: user.email, role: user.role, passwordHash: user.passwordHash };
+  const u = {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    passwordHash: user.passwordHash,
+    emailSignInOtpEnabled: user.emailSignInOtpEnabled ?? false,
+  };
   const { accessToken, expiresIn } = tokenService.issueAccessToken(u);
   const refreshToken = tokenService.issueRefreshToken(u);
   return { accessToken, refreshToken, expiresIn, deviceToken };
@@ -147,6 +159,22 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
           });
           return issueSession(tokenService, user, deviceToken);
         }
+      }
+
+      if (!user.emailSignInOtpEnabled) {
+        const newDeviceToken = generateDeviceToken();
+        const tokenHash = hashDeviceToken(newDeviceToken);
+        await pruneTrustedDevicesIfNeeded(prisma, user.id);
+        await prisma.trustedDevice.create({
+          data: { userId: user.id, tokenHash },
+        });
+        await auditService?.log({
+          userId: user.id,
+          action: 'LOGIN',
+          resourceType: 'SESSION',
+          resourceId: null,
+        });
+        return issueSession(tokenService, user, newDeviceToken);
       }
 
       const resendAfterMs = config.EMAIL_OTP_RESEND_SECONDS * 1000;

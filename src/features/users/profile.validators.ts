@@ -24,9 +24,24 @@ const optionalSkills = z
   });
 
 export const updateProfileSchema = z.object({
-  body: z.object({
-    firstName: optionalTrimmedString,
-    lastName: optionalTrimmedString,
-    skills: optionalSkills,
-  }),
+  body: z
+    .object({
+      firstName: optionalTrimmedString,
+      lastName: optionalTrimmedString,
+      skills: optionalSkills,
+      emailSignInOtpEnabled: z.boolean().optional(),
+      currentPassword: z.string().optional(),
+    })
+    .superRefine((data, ctx) => {
+      if (data.emailSignInOtpEnabled !== undefined) {
+        const pw = data.currentPassword?.trim() ?? '';
+        if (pw.length === 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Current password is required to change email sign-in verification',
+            path: ['currentPassword'],
+          });
+        }
+      }
+    }),
 });

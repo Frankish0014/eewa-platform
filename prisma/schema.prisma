@@ -38,6 +38,8 @@ model User {
   // 2FA ready
   twoFactorSecretEnc String?
   twoFactorEnabled   Boolean   @default(false)
+  // Email OTP on new browser/device — opt-in from Profile (password required to change)
+  emailSignInOtpEnabled Boolean  @default(false)
 
   institution   Institution?  @relation(fields: [institutionId], references: [id])
   projects      Project[]     @relation("ProjectOwner")
@@ -255,7 +257,15 @@ model OpportunityApplication {
   opportunityId  String
   studentId      String
   primaryProjectId String? // student’s venture in matching sector (for audit / eligibility)
-  message        String?  @db.Text
+  message        String?  @db.Text // legacy / extra note
+  whyFit         String?  @db.Text // why venture fits this opportunity (required on new applies)
+  experienceSummary String? @db.Text // relevant background
+  outcomesSought String?  @db.Text // what they hope to gain
+  supportNeeded  String?  @db.Text // support or resources needed
+  ventureStage   String?  // self-reported stage: IDEA | PROTOTYPE | MVP | REVENUE | SCALING | OTHER
+  // Evidence supporting the venture (metrics, deck, demo — links + short narrative)
+  proofSummary   String?  @db.Text
+  proofLinks     String?  @db.Text // one URL per line; pitch deck, demo, article, etc.
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

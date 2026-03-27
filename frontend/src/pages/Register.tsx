@@ -103,7 +103,7 @@ export default function Register() {
                 />
                 <span className={styles.roleTitle}>Institution staff</span>
                 <span className={styles.roleDesc}>
-                  University or hub staff: offer funding opportunities, partnerships with ventures, and programs that create impact for entrepreneurs
+                  University, incubator, or program staff: post grants and programs (admin-verified like other listings), review student applications, browse ventures by sector, and use aggregate reports — same partner tools as external opportunity providers, plus your institution on your profile
                 </span>
               </label>
             </div>

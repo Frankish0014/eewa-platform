@@ -14,7 +14,7 @@ export default function ProviderEntrepreneurs() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user?.role !== 'OpportunityProvider') {
+    if (user?.role !== 'OpportunityProvider' && user?.role !== 'InstitutionStaff') {
       setLoading(false);
       return;
     }
@@ -53,10 +53,10 @@ export default function ProviderEntrepreneurs() {
     return Array.from(byOwner.values()).sort((a, b) => b.count - a.count);
   }, [overview, sectorId, sectorName]);
 
-  if (user?.role !== 'OpportunityProvider') {
+  if (user?.role !== 'OpportunityProvider' && user?.role !== 'InstitutionStaff') {
     return (
       <div className={adminStyles.card}>
-        <p className={adminStyles.error}>Access denied. Opportunity providers only.</p>
+        <p className={adminStyles.error}>Access denied. Opportunity providers and institution partners only.</p>
       </div>
     );
   }

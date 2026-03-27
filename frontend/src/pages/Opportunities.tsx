@@ -8,7 +8,17 @@ import {
   type Opportunity,
   type Sector,
   type Project,
+  type VentureStageOption,
 } from '../api/client';
+
+const VENTURE_STAGE_OPTIONS: { value: VentureStageOption; label: string }[] = [
+  { value: 'IDEA', label: 'Idea' },
+  { value: 'PROTOTYPE', label: 'Prototype' },
+  { value: 'MVP', label: 'MVP' },
+  { value: 'REVENUE', label: 'Revenue' },
+  { value: 'SCALING', label: 'Scaling' },
+  { value: 'OTHER', label: 'Other' },
+];
 import { useAuth } from '../contexts/AuthContext';
 import styles from './Dashboard.module.css';
 import adminStyles from './Admin.module.css';
@@ -24,6 +34,13 @@ export default function OpportunitiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [applyOpp, setApplyOpp] = useState<Opportunity | null>(null);
   const [applyProjectId, setApplyProjectId] = useState('');
+  const [applyWhyFit, setApplyWhyFit] = useState('');
+  const [applyExperience, setApplyExperience] = useState('');
+  const [applyOutcomes, setApplyOutcomes] = useState('');
+  const [applySupport, setApplySupport] = useState('');
+  const [applyVentureStage, setApplyVentureStage] = useState<VentureStageOption | ''>('');
+  const [applyProofSummary, setApplyProofSummary] = useState('');
+  const [applyProofLinks, setApplyProofLinks] = useState('');
   const [applyMessage, setApplyMessage] = useState('');
   const [applyAck, setApplyAck] = useState(false);
   const [applySubmitting, setApplySubmitting] = useState(false);
@@ -50,6 +67,13 @@ export default function OpportunitiesPage() {
   const openApply = (o: Opportunity) => {
     setApplyOpp(o);
     setApplySuccess(null);
+    setApplyWhyFit('');
+    setApplyExperience('');
+    setApplyOutcomes('');
+    setApplySupport('');
+    setApplyVentureStage('');
+    setApplyProofSummary('');
+    setApplyProofLinks('');
     setApplyMessage('');
     setApplyAck(false);
     const inSector = projects.filter((p) => p.sectorId === o.sectorId);
@@ -76,11 +100,22 @@ export default function OpportunitiesPage() {
       setError('Please confirm you meet the eligibility criteria.');
       return;
     }
+    if (applyWhyFit.trim().length < 40) {
+      setError('Please write at least 40 characters explaining why your venture fits this opportunity.');
+      return;
+    }
     setApplySubmitting(true);
     setError(null);
     try {
       await applyToOpportunity(applyOpp.id, {
         primaryProjectId,
+        whyFit: applyWhyFit.trim(),
+        experienceSummary: applyExperience.trim() || undefined,
+        outcomesSought: applyOutcomes.trim() || undefined,
+        supportNeeded: applySupport.trim() || undefined,
+        ventureStage: applyVentureStage || undefined,
+        proofSummary: applyProofSummary.trim() || undefined,
+        proofLinks: applyProofLinks.trim() || undefined,
         message: applyMessage.trim() || undefined,
         eligibilityAcknowledged: applyOpp.eligibilityCriteria?.trim() ? applyAck : undefined,
       });
@@ -258,14 +293,99 @@ export default function OpportunitiesPage() {
                         </div>
                       )}
                       <div style={{ marginBottom: '1rem' }}>
-                        <label className={styles.label}>Message to provider (optional)</label>
+                        <label className={styles.label}>How does your venture fit this opportunity? *</label>
+                        <textarea
+                          className={styles.input}
+                          rows={4}
+                          value={applyWhyFit}
+                          onChange={(e) => setApplyWhyFit(e.target.value)}
+                          maxLength={4000}
+                          required
+                          placeholder="Describe alignment with the program, timing, and what you bring (at least a few sentences)."
+                        />
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0' }}>
+                          {applyWhyFit.trim().length}/40 minimum characters
+                        </p>
+                      </div>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label className={styles.label}>Relevant experience or background (optional)</label>
+                        <textarea
+                          className={styles.input}
+                          rows={2}
+                          value={applyExperience}
+                          onChange={(e) => setApplyExperience(e.target.value)}
+                          maxLength={2000}
+                          placeholder="Team skills, prior ventures, sector experience…"
+                        />
+                      </div>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label className={styles.label}>What you hope to gain (optional)</label>
+                        <textarea
+                          className={styles.input}
+                          rows={2}
+                          value={applyOutcomes}
+                          onChange={(e) => setApplyOutcomes(e.target.value)}
+                          maxLength={2000}
+                          placeholder="Funding, validation, mentorship, market access…"
+                        />
+                      </div>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label className={styles.label}>Support or resources you need (optional)</label>
+                        <textarea
+                          className={styles.input}
+                          rows={2}
+                          value={applySupport}
+                          onChange={(e) => setApplySupport(e.target.value)}
+                          maxLength={2000}
+                          placeholder="Legal, tech, introductions, workspace…"
+                        />
+                      </div>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label className={styles.label}>Current venture stage (optional)</label>
+                        <select
+                          className={styles.input}
+                          value={applyVentureStage}
+                          onChange={(e) => setApplyVentureStage((e.target.value as VentureStageOption | '') || '')}
+                        >
+                          <option value="">Select…</option>
+                          {VENTURE_STAGE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label className={styles.label}>Evidence / traction (optional)</label>
                         <textarea
                           className={styles.input}
                           rows={3}
+                          value={applyProofSummary}
+                          onChange={(e) => setApplyProofSummary(e.target.value)}
+                          maxLength={2000}
+                          placeholder="Short summary of proof: users or revenue, pilots, awards, media, letters of intent…"
+                        />
+                      </div>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label className={styles.label}>Links to proof (optional)</label>
+                        <textarea
+                          className={styles.input}
+                          rows={3}
+                          value={applyProofLinks}
+                          onChange={(e) => setApplyProofLinks(e.target.value)}
+                          maxLength={3000}
+                          placeholder="One URL per line — pitch deck, demo video, product site, GitHub, news article…"
+                        />
+                      </div>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label className={styles.label}>Anything else for the provider (optional)</label>
+                        <textarea
+                          className={styles.input}
+                          rows={2}
                           value={applyMessage}
                           onChange={(e) => setApplyMessage(e.target.value)}
                           maxLength={2000}
-                          placeholder="Brief note about your fit or questions"
+                          placeholder="Links, timing constraints, or questions"
                         />
                       </div>
                       <button type="submit" className={adminStyles.btnPrimary} disabled={applySubmitting}>

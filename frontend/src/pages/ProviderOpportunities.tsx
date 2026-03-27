@@ -6,12 +6,46 @@ import {
   getSectors,
   createOpportunity,
   updateOpportunity,
+  getOpportunityApplications,
   type Opportunity,
   type Sector,
+  type OpportunityApplicationListItem,
 } from '../api/client';
 import styles from './Dashboard.module.css';
 import adminStyles from './Admin.module.css';
 import modalStyles from './Projects.module.css';
+
+function proofLinkLines(raw: string | null): string[] {
+  if (!raw?.trim()) return [];
+  return raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+function safeProofHref(line: string): string | null {
+  const candidate = line.startsWith('http://') || line.startsWith('https://') ? line : `https://${line}`;
+  try {
+    const u = new URL(candidate);
+    if (u.protocol === 'http:' || u.protocol === 'https:') return u.href;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function formatVentureStage(s: string | null): string {
+  if (!s) return '—';
+  const map: Record<string, string> = {
+    IDEA: 'Idea',
+    PROTOTYPE: 'Prototype',
+    MVP: 'MVP',
+    REVENUE: 'Revenue',
+    SCALING: 'Scaling',
+    OTHER: 'Other',
+  };
+  return map[s] ?? s;
+}
 
 export default function ProviderOpportunities() {
   const { user } = useAuth();
@@ -28,6 +62,10 @@ export default function ProviderOpportunities() {
   const [formSectorId, setFormSectorId] = useState('');
   const [formEligibility, setFormEligibility] = useState('');
   const [formRequireMilestone, setFormRequireMilestone] = useState(false);
+  const [appsOpp, setAppsOpp] = useState<Opportunity | null>(null);
+  const [applications, setApplications] = useState<OpportunityApplicationListItem[]>([]);
+  const [appsLoading, setAppsLoading] = useState(false);
+  const [appsError, setAppsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.role !== 'OpportunityProvider') {
@@ -43,6 +81,20 @@ export default function ProviderOpportunities() {
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false));
   }, [user?.role]);
+
+  useEffect(() => {
+    if (!appsOpp) {
+      setApplications([]);
+      setAppsError(null);
+      return;
+    }
+    setAppsLoading(true);
+    setAppsError(null);
+    getOpportunityApplications(appsOpp.id)
+      .then((r) => setApplications(r.applications))
+      .catch((e) => setAppsError(e instanceof Error ? e.message : 'Failed to load applications'))
+      .finally(() => setAppsLoading(false));
+  }, [appsOpp]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,10 +163,10 @@ export default function ProviderOpportunities() {
     setError(null);
   };
 
-  if (user?.role !== 'OpportunityProvider') {
+  if (user?.role !== 'OpportunityProvider' && user?.role !== 'InstitutionStaff') {
     return (
       <div className={adminStyles.card}>
-        <p className={adminStyles.error}>Access denied. Opportunity providers only.</p>
+        <p className={adminStyles.error}>Access denied. Opportunity providers and institution partners only.</p>
       </div>
     );
   }
@@ -223,6 +275,7 @@ export default function ProviderOpportunities() {
                   <th>Sector</th>
                   <th>Status</th>
                   <th>Created</th>
+                  <th>Applications</th>
                   <th></th>
                 </tr>
               </thead>
@@ -241,6 +294,15 @@ export default function ProviderOpportunities() {
                       <button
                         type="button"
                         className={styles.editBtn}
+                        onClick={() => setAppsOpp(o)}
+                      >
+                        Review submissions
+                      </button>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className={styles.editBtn}
                         onClick={() => openEdit(o)}
                       >
                         Edit
@@ -253,6 +315,119 @@ export default function ProviderOpportunities() {
           </div>
         )}
       </div>
+
+      {appsOpp && (
+        <div
+          className={modalStyles.overlay}
+          onClick={() => setAppsOpp(null)}
+          role="presentation"
+        >
+          <div
+            className={modalStyles.modal}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="apps-modal-title"
+            style={{ maxWidth: '640px', maxHeight: '90vh', overflow: 'auto' }}
+          >
+            <div className={modalStyles.header}>
+              <h3 id="apps-modal-title">Applications: {appsOpp.title}</h3>
+              <button
+                type="button"
+                className={modalStyles.close}
+                aria-label="Close"
+                onClick={() => setAppsOpp(null)}
+              >
+                ×
+              </button>
+            </div>
+            {appsError && <p className={adminStyles.error}>{appsError}</p>}
+            {appsLoading ? (
+              <p className={adminStyles.loading}>Loading…</p>
+            ) : applications.length === 0 ? (
+              <p className={adminStyles.empty}>No applications yet. When students apply, their submissions appear here.</p>
+            ) : (
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {applications.map((app) => (
+                  <li
+                    key={app.id}
+                    style={{
+                      border: '1px solid var(--border, #ddd)',
+                      borderRadius: '8px',
+                      padding: '1rem',
+                      marginBottom: '1rem',
+                    }}
+                  >
+                    <p style={{ margin: '0 0 0.5rem', fontWeight: 700 }}>
+                      {app.studentFirstName} {app.studentLastName}
+                      <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>
+                        {app.studentEmail}
+                      </span>
+                    </p>
+                    <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem' }}>
+                      <strong>Venture:</strong> {app.primaryProjectTitle ?? '—'}{' '}
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        · Submitted {new Date(app.createdAt).toLocaleString()}
+                      </span>
+                    </p>
+                    <dl style={{ margin: '0.75rem 0 0', fontSize: '0.9rem' }}>
+                      <dt style={{ fontWeight: 600, marginTop: '0.5rem' }}>Why it fits</dt>
+                      <dd style={{ margin: '0.25rem 0 0', whiteSpace: 'pre-wrap' }}>{app.whyFit ?? '—'}</dd>
+                      <dt style={{ fontWeight: 600, marginTop: '0.5rem' }}>Stage</dt>
+                      <dd style={{ margin: '0.25rem 0 0' }}>{formatVentureStage(app.ventureStage)}</dd>
+                      <dt style={{ fontWeight: 600, marginTop: '0.5rem' }}>Relevant experience</dt>
+                      <dd style={{ margin: '0.25rem 0 0', whiteSpace: 'pre-wrap' }}>
+                        {app.experienceSummary?.trim() ? app.experienceSummary : '—'}
+                      </dd>
+                      <dt style={{ fontWeight: 600, marginTop: '0.5rem' }}>Hopes to gain</dt>
+                      <dd style={{ margin: '0.25rem 0 0', whiteSpace: 'pre-wrap' }}>
+                        {app.outcomesSought?.trim() ? app.outcomesSought : '—'}
+                      </dd>
+                      <dt style={{ fontWeight: 600, marginTop: '0.5rem' }}>Support needed</dt>
+                      <dd style={{ margin: '0.25rem 0 0', whiteSpace: 'pre-wrap' }}>
+                        {app.supportNeeded?.trim() ? app.supportNeeded : '—'}
+                      </dd>
+                      <dt style={{ fontWeight: 600, marginTop: '0.5rem' }}>Evidence / traction</dt>
+                      <dd style={{ margin: '0.25rem 0 0', whiteSpace: 'pre-wrap' }}>
+                        {app.proofSummary?.trim() ? app.proofSummary : '—'}
+                      </dd>
+                      <dt style={{ fontWeight: 600, marginTop: '0.5rem' }}>Proof links</dt>
+                      <dd style={{ margin: '0.25rem 0 0' }}>
+                        {proofLinkLines(app.proofLinks).length === 0 ? (
+                          '—'
+                        ) : (
+                          <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.25rem' }}>
+                            {proofLinkLines(app.proofLinks).map((url) => {
+                              const href = safeProofHref(url);
+                              return (
+                                <li key={url} style={{ wordBreak: 'break-all' }}>
+                                  {href ? (
+                                    <a href={href} target="_blank" rel="noopener noreferrer">
+                                      {url}
+                                    </a>
+                                  ) : (
+                                    url
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </dd>
+                      {app.message?.trim() && (
+                        <>
+                          <dt style={{ fontWeight: 600, marginTop: '0.5rem' }}>Additional notes</dt>
+                          <dd style={{ margin: '0.25rem 0 0', whiteSpace: 'pre-wrap' }}>{app.message}</dd>
+                        </>
+                      )}
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
 
       {editingOpportunity && (
         <div

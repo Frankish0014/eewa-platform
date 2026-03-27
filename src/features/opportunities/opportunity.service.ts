@@ -2,7 +2,14 @@
  * Opportunity service — create, list verified, admin verify/reject, student apply.
  */
 import { OpportunityStatus, Prisma } from '@prisma/client';
-import type { OpportunityDto, CreateOpportunityData, UpdateOpportunityData, OpportunityRepository } from './opportunity.repository';
+import type {
+  OpportunityDto,
+  CreateOpportunityData,
+  UpdateOpportunityData,
+  OpportunityRepository,
+  OpportunityApplicationListItemDto,
+} from './opportunity.repository';
+import type { OpportunityApplyBody } from './opportunity.validators';
 import { NotFoundError, ForbiddenError, ConflictError } from '../../core/errors';
 
 export type OpportunityService = ReturnType<typeof createOpportunityService>;
@@ -48,15 +55,18 @@ export function createOpportunityService(
       return dto;
     },
 
+    async listApplicationsForProvider(
+      opportunityId: string,
+      providerId: string
+    ): Promise<OpportunityApplicationListItemDto[]> {
+      return repo.listApplicationsForProviderOpportunity(opportunityId, providerId);
+    },
+
     async apply(
       opportunityId: string,
       studentId: string,
       studentRole: string,
-      body: {
-        primaryProjectId?: string;
-        message?: string;
-        eligibilityAcknowledged?: boolean;
-      }
+      body: OpportunityApplyBody
     ) {
       if (studentRole !== 'Student') {
         throw new ForbiddenError('Only students can apply to opportunities');
@@ -97,6 +107,13 @@ export function createOpportunityService(
           studentId,
           primaryProjectId: project.id,
           message: body.message,
+          whyFit: body.whyFit,
+          experienceSummary: body.experienceSummary,
+          outcomesSought: body.outcomesSought,
+          supportNeeded: body.supportNeeded,
+          ventureStage: body.ventureStage,
+          proofSummary: body.proofSummary,
+          proofLinks: body.proofLinks,
         });
       } catch (e) {
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
