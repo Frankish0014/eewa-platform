@@ -21,7 +21,21 @@ Render, Railway, Fly, and most hosts deploy from a repo. Do **not** commit `.env
 | `PORT` | Leave unset on **Render** / **Railway** / **Fly** — they inject `PORT`; the app reads it automatically. |
 | `STATIC_FILES_DIR` | Use **`/app/public`** when running the provided **Dockerfile** (already the default in the image). |
 
-The container entrypoint runs **`prisma migrate deploy`** before starting the server. Use a **new** Neon DB for clean migrations, or see [baselining](#existing-database-was-using-db-push) if you already applied schema with `db push`.
+The container entrypoint runs **`prisma migrate deploy`** (via `scripts/prisma-deploy.cjs`) before starting the server.
+
+**P3005 — “database schema is not empty”** (common with Neon you already used with `db push`):
+
+- **Option A (one command, local):** with `DATABASE_URL` pointing at that Neon DB, run:
+
+  ```bash
+  npm run db:baseline:init
+  ```
+
+  Then redeploy Render — **`migrate deploy`** will succeed.
+
+- **Option B (Render env, first deploy only):** set **`EEWA_AUTO_BASELINE_MIGRATION`** = **`20250327120000_init`** on the Web Service, deploy once; after a green deploy you can remove that variable. Do **not** set this on a **brand-new empty** database (it would mark the migration applied without creating tables).
+
+Use a **new empty** Neon branch/database if you prefer a clean history without baselining.
 
 ### 3. Deploy the Docker image
 
@@ -66,9 +80,11 @@ Optional: in the repo root, `render.yaml` can create the web service skeleton; y
 
 ### Render troubleshooting
 
-- **“We don't have access to your repo”** in build logs: install or reconnect the [Render GitHub App](https://render.com/docs/github) and grant access to **Frankish0014/eewa-platform** (GitHub → **Settings → Integrations → Applications** → Configure Render → Repository access).
-- **Docker `npm ci` failed on `prepare` / `ensure-git-hooks`**: fixed in-repo by skipping git-hook setup when **`DOCKER_BUILD=1`** during image build; use the latest `Dockerfile` and `scripts/run-prepare.cjs`.
-- **Peer dependency / Vite errors on frontend build**: frontend needs **`@vitejs/plugin-react`** major version that matches **Vite 8** (see `frontend/package.json`).
+- **`DATABASE_URL` / P1012 “URL must start with postgresql://”** on deploy: the **Web Service** must define **`DATABASE_URL`** itself. Using **Neon** or another external DB is not automatic—open **Web Service → Environment** and paste the full connection string (starts with `postgresql://`). If you use **Render Postgres**, link it to this service or copy its **External** / **Internal** URL into **`DATABASE_URL`**. Do **not** wrap the value in `"quotes"` in the UI. After saving, **Manual Deploy → Clear build cache & deploy** if the variable was wrong on a previous attempt.
+- **“We don't have access to your repo”** in build logs: install or reconnect the [Render GitHub App](https://render.com/docs/github) and grant access to your repo (GitHub → **Settings → Integrations → Applications** → Configure Render → Repository access).
+- **Docker `npm ci` failed on `prepare` / `ensure-git-hooks`**: use the latest `Dockerfile` and `scripts/run-prepare.cjs` (`DOCKER_BUILD=1` skips git hooks during install).
+- **Peer dependency / Vite errors on frontend build**: **`@vitejs/plugin-react`** must match **Vite 8** (see `frontend/package.json`).
+- **`package.json#prisma` deprecated**: informational with Prisma 6; upgrading to Prisma 7 requires a separate migration.
 - **Cold start on free tier**: the service can sleep; first request may take ~50s+.
 
 ---

@@ -4,6 +4,22 @@
  */
 import { z } from 'zod';
 
+/** Trim and strip wrapping quotes from DATABASE_URL (host UIs / .env paste issues). */
+function normalizeDatabaseUrlInEnv(): void {
+  const raw = process.env.DATABASE_URL;
+  if (raw === undefined) return;
+  let u = raw.replace(/^\uFEFF/u, '').trim();
+  if (
+    (u.startsWith('"') && u.endsWith('"')) ||
+    (u.startsWith("'") && u.endsWith("'"))
+  ) {
+    u = u.slice(1, -1).trim();
+  }
+  process.env.DATABASE_URL = u;
+}
+
+normalizeDatabaseUrlInEnv();
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(3001),
