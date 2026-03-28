@@ -92,6 +92,20 @@
   cursor: not-allowed;
 }
 
+/* Outline / secondary — must not inherit primary’s white label (invisible on light cards) */
+.buttonSecondary {
+  margin-top: 0.5rem;
+  background: transparent !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+}
+
+.buttonSecondary:hover:not(:disabled) {
+  background: var(--accent-muted) !important;
+  border-color: var(--accent) !important;
+  color: var(--text) !important;
+}
+
 .footer {
   margin-top: 1.5rem;
   padding-top: 1rem;

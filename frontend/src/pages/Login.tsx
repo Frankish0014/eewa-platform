@@ -80,8 +80,7 @@ export default function Login() {
             </button>
             <button
               type="button"
-              className={styles.button}
-              style={{ marginTop: '0.5rem', background: 'transparent', border: '1px solid var(--border, #ccc)' }}
+              className={`${styles.button} ${styles.buttonSecondary}`}
               onClick={() => {
                 setStep('password');
                 setEmailOtpToken(null);
