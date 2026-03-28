@@ -42,12 +42,31 @@ const envSchema = z.object({
   SMTP_SECURE: z.string().optional(),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
+  /** Mailbox address (e.g. no-reply@yourdomain.com). Must be allowed by your SMTP provider / domain DNS (SPF, DKIM). */
   SMTP_FROM: z.string().optional(),
+  /** Display name in the From header (default EEWA). */
+  SMTP_FROM_NAME: z.string().optional(),
+  /** Shown in transactional emails for user support (optional). */
+  SUPPORT_EMAIL: z.string().optional(),
   /** Public site URL (https://…) for email footers — same as users’ browser origin when possible */
   PUBLIC_APP_URL: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
+
+/**
+ * Default From address when `SMTP_HOST` is set but `SMTP_FROM` is omitted.
+ * Deliverability requires this domain to be verified (SPF/DKIM) with your email provider.
+ */
+export const EEWA_DEFAULT_TRANSACTIONAL_EMAIL = 'no-reply@eewa-platform.com';
+
+/** Resolves the mailbox for transactional email. Explicit `SMTP_FROM` always wins. */
+export function resolveSmtpMailbox(env: Env): string {
+  const explicit = env.SMTP_FROM?.trim();
+  if (explicit) return explicit;
+  if (env.SMTP_HOST?.trim()) return EEWA_DEFAULT_TRANSACTIONAL_EMAIL;
+  return '';
+}
 
 function loadConfig(): Env {
   const parsed = envSchema.safeParse(process.env);

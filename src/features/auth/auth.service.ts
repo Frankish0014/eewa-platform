@@ -10,7 +10,7 @@ import type { AuditService } from '../audit/audit.service';
 import type { EmailDelivery } from '../notifications/email-delivery';
 import { hashPassword } from './auth.repository';
 import { generateDeviceToken, hashDeviceToken } from './device-token';
-import { config } from '../../config';
+import { config, resolveSmtpMailbox } from '../../config';
 import { logger } from '../../common/logger';
 import { AppError, UnauthorizedError, ConflictError } from '../../core/errors';
 
@@ -144,33 +144,74 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 
       const base = appBaseUrl();
       const roleLabel = user.role.replace(/([A-Z])/g, ' $1').trim();
+      const first = input.firstName.trim() || 'there';
+      const support = config.SUPPORT_EMAIL?.trim();
+      const fromMailbox = resolveSmtpMailbox(config) || 'the EEWA platform';
+
+      const signInLine = base
+        ? `Sign in: ${base}`
+        : 'Sign in with the email address and password you used when you registered.';
+
       const welcomeText = [
-        `Hi ${input.firstName},`,
+        `Dear ${first},`,
         '',
-        'Welcome to EEWA — your account was created successfully.',
+        'Thank you for joining EEWA (Entrepreneur Empowerment Web Application). Your registration is complete and your account is now active.',
         '',
-        `Role: ${roleLabel}`,
+        'EEWA is built for student entrepreneurs across Africa: to discover opportunities, work with mentors, and strengthen ventures from idea to impact. We are pleased to have you with us.',
         '',
-        base
-          ? `Sign in anytime at: ${base}`
-          : 'You can sign in with the email and password you used to register.',
+        `Account type: ${roleLabel}`,
+        signInLine,
         '',
-        'If you did not create this account, contact support.', 
-        'through our admin email at f.ishimwe@alustudent.com or the phone number +250782658368',
+        'Suggested next steps:',
+        '• Complete your profile so mentors, institutions, and partners can understand your background and goals.',
+        '• Explore opportunities that align with your sector and stage.',
+        '• Use the platform to connect with mentors and peers when you are ready for guidance or collaboration.',
         '',
-        '— The EEWA team',
-      ].join('\n');
-      const welcomeHtml = [
-        `<p>Hi ${escapeHtml(input.firstName)},</p>`,
-        '<p><strong>Welcome to EEWA</strong> — your account was created successfully.</p>',
-        `<p>Your account role: <strong>${escapeHtml(roleLabel)}</strong></p>`,
-        base ? `<p>Sign in: <a href="${escapeHtml(base)}">${escapeHtml(base)}</a></p>` : '<p>You can sign in with the email and password you registered.</p>',
-        '<p>If you did not create this account, contact support.</p>',
-        '<p>— The EEWA team</p>',
+        `This is an automated message from ${fromMailbox}. Please do not reply to this address; it is not monitored.`,
+        support
+          ? `For assistance, please contact us at ${support}, or use the help options on the EEWA website.`
+          : 'For assistance, please use the contact or help options on the EEWA website.',
+        '',
+        'If you did not register for EEWA, you may disregard this email. No further action is required.',
+        '',
+        'Kind regards,',
+        'The EEWA Team',
       ].join('\n');
 
+      const signInBlock = base
+        ? `<p style="margin:16px 0;font-family:system-ui,Segoe UI,sans-serif;font-size:16px;line-height:1.5;"><a href="${escapeHtml(base)}" style="display:inline-block;padding:12px 20px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Sign in to EEWA</a></p><p style="margin:0;font-family:system-ui,Segoe UI,sans-serif;font-size:14px;color:#6b7280;word-break:break-all;">${escapeHtml(base)}</p>`
+        : '<p style="font-family:system-ui,Segoe UI,sans-serif;font-size:16px;line-height:1.5;">Sign in with the email and password you used to register.</p>';
+
+      const helpLineHtml = support
+        ? `<p style="margin:12px 0 0;font-size:13px;line-height:1.55;color:#6b7280;">For assistance: <a href="mailto:${escapeHtml(support)}" style="color:#1d4ed8;">${escapeHtml(support)}</a>, or use the options on the EEWA website.</p>`
+        : '<p style="margin:12px 0 0;font-size:13px;line-height:1.55;color:#6b7280;">For assistance, use the contact or help options on the EEWA website.</p>';
+
+      const welcomeHtml = [
+        '<div style="max-width:560px;margin:0 auto;padding:28px 24px;font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;color:#111827;background:#fafafa;">',
+        '<div style="background:#fff;border-radius:12px;padding:28px 24px;border:1px solid #e5e7eb;">',
+        '<p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#1d4ed8;">EEWA</p>',
+        `<p style="margin:0 0 18px;font-size:20px;font-weight:600;line-height:1.35;color:#111827;">Welcome, ${escapeHtml(first)}</p>`,
+        '<p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:#374151;">Thank you for joining <strong>EEWA</strong> (Entrepreneur Empowerment Web Application). Your registration is complete and your account is <strong>active</strong>.</p>',
+        '<p style="margin:0 0 18px;font-size:16px;line-height:1.6;color:#374151;">EEWA supports student entrepreneurs across Africa: to discover opportunities, work with mentors, and strengthen ventures from idea to impact. We are glad you are here.</p>',
+        `<p style="margin:0 0 6px;font-size:14px;color:#6b7280;">Account type</p>`,
+        `<p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">${escapeHtml(roleLabel)}</p>`,
+        signInBlock,
+        '<p style="margin:24px 0 12px;font-size:15px;font-weight:600;color:#111827;">Suggested next steps</p>',
+        '<ul style="margin:0;padding-left:20px;font-size:15px;line-height:1.6;color:#374151;">',
+        '<li style="margin-bottom:10px;">Complete your profile so others understand your background and goals.</li>',
+        '<li style="margin-bottom:10px;">Explore opportunities that fit your role, sector, and stage.</li>',
+        '<li style="margin-bottom:10px;">Connect with mentors and peers when you want guidance or collaboration.</li>',
+        '</ul>',
+        '<div style="margin-top:28px;padding-top:20px;border-top:1px solid #e5e7eb;">',
+        `<p style="margin:0 0 12px;font-size:13px;line-height:1.55;color:#6b7280;">This is an automated message from <strong style="color:#374151;">${escapeHtml(fromMailbox)}</strong>. Please do not reply to this address; it is not monitored.</p>`,
+        helpLineHtml,
+        '<p style="margin:16px 0 0;font-size:13px;line-height:1.55;color:#6b7280;">If you did not register for EEWA, you may disregard this message.</p>',
+        '<p style="margin:24px 0 0;font-size:15px;line-height:1.5;color:#111827;"><strong>Kind regards,</strong><br><span style="color:#4b5563;">The EEWA Team</span></p>',
+        '</div></div></div>',
+      ].join('');
+
       try {
-        await emailDelivery.sendMail(user.email, 'Welcome to EEWA — account created', welcomeText, welcomeHtml);
+        await emailDelivery.sendMail(user.email, 'Welcome to EEWA — your account is active', welcomeText, welcomeHtml);
       } catch (e) {
         logger.warn('Welcome email failed (registration still succeeded)', {
           userId: user.id,

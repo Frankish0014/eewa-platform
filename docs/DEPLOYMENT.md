@@ -18,6 +18,9 @@ Render, Railway, Fly, and most hosts deploy from a repo. ; using the host’s **
 | `ENCRYPTION_KEY` | Exactly **64** hex characters (32 bytes). Same command as in Docker Compose section below. |
 | `CORS_ORIGIN` | **Exact** browser origin users type — e.g. `https://eewa-platform.onrender.com` |
 | `SMTP_*` | **Setting in production** for real mail: **welcome** on registration, **sign-in OTP** (when users enable it on their profile), and opportunity alerts. Without SMTP, the API logs a warning and only logs message previews. |
+| `SMTP_FROM` | Sender address (e.g. `no-reply@yourdomain.com`). Must match what your provider allows (SPF/DKIM for that domain). Personal Gmail SMTP usually sends **as that Gmail address**, not as an arbitrary domain, unless you use Workspace + verified domain. |
+| `SMTP_FROM_NAME` | Optional. Display name in the From header (defaults to `EEWA`). |
+| `SUPPORT_EMAIL` | Optional. Included in the welcome email so users know how to reach a human. |
 | `PUBLIC_APP_URL` | Optional; public `https://eewa-platform.onrender.com` |
 | `PORT` | Leaving unset on **Render** / **Railway** / **Fly** — they inject `PORT`; the app reads it automatically. |
 | `STATIC_FILES_DIR` | Using **`/app/public`** when running the provided **Dockerfile** (already the default in the image). |
