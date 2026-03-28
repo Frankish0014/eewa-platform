@@ -19,6 +19,8 @@ import {
   registerSchema,
   refreshSchema,
   emailOtpVerifySchema,
+  passwordResetRequestSchema,
+  passwordResetConfirmSchema,
 } from './features/auth';
 
 import { PrismaClient } from '@prisma/client';
@@ -173,6 +175,12 @@ app.post('/api/auth/verify-email-otp', validate(emailOtpVerifySchema), (req, res
 });
 app.post('/api/auth/refresh', validate(refreshSchema), (req, res, next) => {
   authController.refresh(req, res).catch(next);
+});
+app.post('/api/auth/forgot-password', validate(passwordResetRequestSchema), (req, res, next) => {
+  authController.forgotPassword(req, res).catch(next);
+});
+app.post('/api/auth/reset-password', validate(passwordResetConfirmSchema), (req, res, next) => {
+  authController.resetPasswordWithToken(req, res).catch(next);
 });
 
 // ─── Protected routes (require JWT)

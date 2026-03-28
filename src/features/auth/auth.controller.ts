@@ -49,5 +49,22 @@ export function createAuthController(authService: AuthService) {
       const result = await authService.refresh(refreshToken);
       res.json(result);
     },
+
+    async forgotPassword(req: Request, res: Response): Promise<void> {
+      const { email } = req.body as { email: string };
+      await authService.requestPasswordReset(email);
+      res.json({
+        message:
+          'If an account exists for this email, we sent instructions to reset your password.',
+      });
+    },
+
+    async resetPasswordWithToken(req: Request, res: Response): Promise<void> {
+      const { token, password } = req.body as { token: string; password: string };
+      await authService.resetPassword(token, password);
+      res.json({
+        message: 'Your password has been updated. You can sign in with your new password.',
+      });
+    },
   };
 }

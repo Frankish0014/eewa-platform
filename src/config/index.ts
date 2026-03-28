@@ -30,6 +30,8 @@ const envSchema = z.object({
   JWT_EMAIL_OTP_PENDING_EXPIRES_IN: z.string().default('15m'),
   EMAIL_OTP_CODE_TTL_MINUTES: z.coerce.number().default(15),
   EMAIL_OTP_RESEND_SECONDS: z.coerce.number().default(60),
+  PASSWORD_RESET_TOKEN_TTL_HOURS: z.coerce.number().default(1),
+  PASSWORD_RESET_RESEND_SECONDS: z.coerce.number().default(60),
   ENCRYPTION_KEY: z.string().length(64), // 32 bytes hex for AES-256
   SESSION_INACTIVITY_MINUTES: z.coerce.number().default(15),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),

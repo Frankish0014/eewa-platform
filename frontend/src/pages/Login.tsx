@@ -116,6 +116,9 @@ export default function Login() {
             Password
             <PasswordInput name="password" required className={styles.input} />
           </label>
+          <p style={{ margin: '-0.5rem 0 0', fontSize: '0.875rem' }}>
+            <Link to="/forgot-password">Forgot password?</Link>
+          </p>
           <button type="submit" className={styles.button} disabled={loading}>
             Sign in
           </button>

@@ -50,6 +50,36 @@ export interface MeResponse {
   user: User;
 }
 
+function validationMessagesFromApiPayload(details: unknown): string[] {
+  if (!details || typeof details !== 'object') return [];
+  const d = details as Record<string, unknown>;
+  const out: string[] = [];
+  const push = (s: string) => {
+    const t = s.trim();
+    if (t) out.push(t);
+  };
+  const form = d.formErrors;
+  if (Array.isArray(form)) for (const x of form) if (typeof x === 'string') push(x);
+  const walk = (node: unknown): void => {
+    if (node == null) return;
+    if (typeof node === 'string') {
+      push(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const x of node) {
+        if (typeof x === 'string') push(x);
+      }
+      return;
+    }
+    if (typeof node === 'object') {
+      for (const v of Object.values(node as Record<string, unknown>)) walk(v);
+    }
+  };
+  walk(d.fieldErrors);
+  return [...new Set(out)];
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -103,37 +133,7 @@ async function request<T>(
       error?: string;
       details?: Record<string, unknown>;
     };
-    /** Collect human-readable strings from API validation payloads (Zod flatten + our inline fieldErrors). */
-    const validationMessages = (details: unknown): string[] => {
-      if (!details || typeof details !== 'object') return [];
-      const d = details as Record<string, unknown>;
-      const out: string[] = [];
-      const push = (s: string) => {
-        const t = s.trim();
-        if (t) out.push(t);
-      };
-      const form = d.formErrors;
-      if (Array.isArray(form)) for (const x of form) if (typeof x === 'string') push(x);
-      const walk = (node: unknown): void => {
-        if (node == null) return;
-        if (typeof node === 'string') {
-          push(node);
-          return;
-        }
-        if (Array.isArray(node)) {
-          for (const x of node) {
-            if (typeof x === 'string') push(x);
-          }
-          return;
-        }
-        if (typeof node === 'object') {
-          for (const v of Object.values(node as Record<string, unknown>)) walk(v);
-        }
-      };
-      walk(d.fieldErrors);
-      return [...new Set(out)];
-    };
-    const msgs = validationMessages(err.details);
+    const msgs = validationMessagesFromApiPayload(err.details);
     const msg =
       msgs.length > 0 ? msgs.join(' ') : (err.error ?? `HTTP ${res.status}`);
     throw new Error(msg);
@@ -187,8 +187,13 @@ async function publicPost<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+    const err = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      details?: Record<string, unknown>;
+    };
+    const msgs = validationMessagesFromApiPayload(err.details);
+    const msg = msgs.length > 0 ? msgs.join(' ') : (err.error ?? `HTTP ${res.status}`);
+    throw new Error(msg);
   }
   if (res.status === 204 || res.headers.get('content-length') === '0') {
     return undefined as T;
@@ -219,6 +224,14 @@ export async function completeLoginWithEmailOtp(emailOtpToken: string, code: str
   localStorage.setItem('refreshToken', data.refreshToken);
   if (data.deviceToken) setDeviceToken(data.deviceToken);
   return data;
+}
+
+export async function requestPasswordReset(email: string): Promise<{ message: string }> {
+  return publicPost<{ message: string }>('/api/auth/forgot-password', { email });
+}
+
+export async function resetPasswordWithToken(token: string, password: string): Promise<{ message: string }> {
+  return publicPost<{ message: string }>('/api/auth/reset-password', { token, password });
 }
 
 export async function refreshToken(): Promise<string> {

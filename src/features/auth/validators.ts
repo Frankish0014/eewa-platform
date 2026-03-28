@@ -8,7 +8,7 @@ const sixDigitCodeSchema = z
   .transform((s) => s.replace(/\s/g, ''))
   .pipe(z.string().min(6, 'Enter the 6-digit code').max(12));
 
-const passwordSchema = z
+export const passwordSchema = z
   .string()
   .min(12, 'Password must be at least 12 characters')
   .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
@@ -55,6 +55,19 @@ export const registerSchema = z
 export const refreshSchema = z.object({
   body: z.object({
     refreshToken: z.string().min(1, 'Refresh token required'),
+  }),
+});
+
+export const passwordResetRequestSchema = z.object({
+  body: z.object({
+    email: z.string().email('Valid email required'),
+  }),
+});
+
+export const passwordResetConfirmSchema = z.object({
+  body: z.object({
+    token: z.string().min(32, 'Invalid or expired reset link'),
+    password: passwordSchema,
   }),
 });
 

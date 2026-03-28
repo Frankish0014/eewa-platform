@@ -55,6 +55,7 @@ model User {
   opportunityApplications OpportunityApplication[]
   trustedDevices          TrustedDevice[]
   emailLoginChallenges    EmailLoginChallenge[]
+  passwordResetTokens     PasswordResetToken[]
 
   @@index([email])
   @@index([role])
@@ -81,6 +82,20 @@ model EmailLoginChallenge {
   codeHash   String
   expiresAt  DateTime
   consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// One-time link token (SHA-256 of secret) for self-service password reset
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
   createdAt  DateTime  @default(now())
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -17,6 +17,10 @@ import { AppError, UnauthorizedError, ConflictError } from '../../core/errors';
 const MAX_TRUSTED_DEVICES = 10;
 const OTP_BCRYPT_COST = 10;
 
+function hashPasswordResetToken(raw: string): string {
+  return crypto.createHash('sha256').update(raw, 'utf8').digest('hex');
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -67,6 +71,9 @@ export interface AuthService {
     institutionCountry?: string;
   }): Promise<RegisterResult>;
   refresh(refreshToken: string | undefined): Promise<{ accessToken: string; expiresIn: number }>;
+  /** Idempotent; does not reveal whether the email exists. Sends mail only for password-based accounts. */
+  requestPasswordReset(email: string): Promise<void>;
+  resetPassword(token: string, newPassword: string): Promise<void>;
 }
 
 async function pruneTrustedDevicesIfNeeded(prisma: PrismaClient, userId: string): Promise<void> {
@@ -413,6 +420,179 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       }
       const { accessToken, expiresIn } = tokenService.issueAccessToken(user);
       return { accessToken, expiresIn };
+    },
+
+    async requestPasswordReset(email: string) {
+      const normalized = email.trim().toLowerCase();
+      if (!normalized) return;
+
+      const user = await authRepo.findByEmail(normalized);
+      if (!user?.passwordHash) {
+        return;
+      }
+
+      const cooldownMs = config.PASSWORD_RESET_RESEND_SECONDS * 1000;
+      const recent = await prisma.passwordResetToken.findFirst({
+        where: {
+          userId: user.id,
+          usedAt: null,
+          expiresAt: { gt: new Date() },
+          createdAt: { gt: new Date(Date.now() - cooldownMs) },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (recent) {
+        return;
+      }
+
+      await prisma.passwordResetToken.deleteMany({
+        where: { userId: user.id, usedAt: null },
+      });
+
+      const rawToken = crypto.randomBytes(32).toString('base64url');
+      const tokenHash = hashPasswordResetToken(rawToken);
+      const expiresAt = new Date(
+        Date.now() + config.PASSWORD_RESET_TOKEN_TTL_HOURS * 60 * 60 * 1000,
+      );
+
+      const resetRow = await prisma.passwordResetToken.create({
+        data: { userId: user.id, tokenHash, expiresAt },
+      });
+
+      const base = appBaseUrl();
+      const resetPath = `/reset-password?token=${encodeURIComponent(rawToken)}`;
+      const resetUrl = base ? `${base.replace(/\/$/, '')}${resetPath}` : resetPath;
+      const ttlHours = config.PASSWORD_RESET_TOKEN_TTL_HOURS;
+      const ttlLabel =
+        ttlHours === 1 ? '1 hour' : `${ttlHours} hours`;
+
+      const support = config.SUPPORT_EMAIL?.trim();
+      const fromMailbox = resolveSmtpMailbox(config) || 'the EEWA platform';
+
+      const bodyText = [
+        'You asked to reset your EEWA password.',
+        '',
+        `Use this link to choose a new password (valid for ${ttlLabel}):`,
+        resetUrl,
+        '',
+        'If you did not request this, you can ignore this email. Your password will stay the same.',
+        support
+          ? `Need help? Contact ${support}.`
+          : 'Need help? Use the contact options on the EEWA website.',
+        '',
+        `This message was sent by ${fromMailbox}.`,
+      ].join('\n');
+
+      const linkBlock = base
+        ? `<p style="margin:16px 0;font-family:system-ui,Segoe UI,sans-serif;font-size:16px;line-height:1.5;"><a href="${escapeHtml(resetUrl)}" style="display:inline-block;padding:12px 20px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Reset password</a></p><p style="margin:0;font-family:system-ui,Segoe UI,sans-serif;font-size:13px;color:#6b7280;word-break:break-all;">${escapeHtml(resetUrl)}</p>`
+        : `<p style="font-family:system-ui,Segoe UI,sans-serif;font-size:14px;color:#374151;word-break:break-all;"><strong>Set PUBLIC_APP_URL</strong> so this email contains a clickable link. Path only: <code>${escapeHtml(resetPath)}</code></p>`;
+
+      const helpLineHtml = support
+        ? `<p style="margin:12px 0 0;font-size:13px;line-height:1.55;color:#6b7280;">Need help? <a href="mailto:${escapeHtml(support)}" style="color:#1d4ed8;">${escapeHtml(support)}</a></p>`
+        : '';
+
+      const bodyHtml = [
+        '<div style="max-width:560px;margin:0 auto;padding:28px 24px;font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;color:#111827;background:#fafafa;">',
+        '<div style="background:#fff;border-radius:12px;padding:28px 24px;border:1px solid #e5e7eb;">',
+        '<p style="margin:0 0 12px;font-size:18px;font-weight:600;color:#111827;">Reset your EEWA password</p>',
+        '<p style="margin:0 0 18px;font-size:15px;line-height:1.6;color:#374151;">We received a request to reset the password for your account. Click the button below to choose a new password.</p>',
+        linkBlock,
+        `<p style="margin:18px 0 0;font-size:14px;color:#6b7280;">This link expires in <strong>${escapeHtml(ttlLabel)}</strong>.</p>`,
+        '<p style="margin:18px 0 0;font-size:14px;line-height:1.55;color:#374151;">If you did not ask for this, you can ignore this email.</p>',
+        helpLineHtml,
+        `<p style="margin:24px 0 0;font-size:12px;color:#9ca3af;">Sent by ${escapeHtml(fromMailbox)}</p>`,
+        '</div></div>',
+      ].join('');
+
+      if (config.NODE_ENV === 'development') {
+        logger.info('Password reset link (dev)', { to: user.email, resetUrl });
+      }
+
+      try {
+        await emailDelivery.sendMail(user.email, 'Reset your EEWA password', bodyText, bodyHtml);
+      } catch (e) {
+        await prisma.passwordResetToken.delete({ where: { id: resetRow.id } }).catch(() => {
+          /* best-effort — avoid leaving a usable token if email never arrived */
+        });
+        logger.error('Password reset email failed', {
+          userId: user.id,
+          email: user.email,
+          message: e instanceof Error ? e.message : String(e),
+        });
+        throw new AppError(
+          'Could not send the reset email. Try again later or contact support.',
+          503,
+          'EMAIL_SEND_FAILED',
+        );
+      }
+
+      await auditService?.log({
+        userId: user.id,
+        action: 'PASSWORD_RESET_REQUESTED',
+        resourceType: 'User',
+        resourceId: user.id,
+      });
+    },
+
+    async resetPassword(token: string, newPassword: string) {
+      const normalized = token.trim();
+      if (normalized.length < 32) {
+        throw new AppError(
+          'This reset link is invalid or has expired. Request a new one from the sign-in page.',
+          400,
+          'INVALID_RESET_TOKEN',
+        );
+      }
+      const tokenHash = hashPasswordResetToken(normalized);
+
+      const row = await prisma.passwordResetToken.findUnique({
+        where: { tokenHash },
+      });
+      if (!row || row.usedAt || row.expiresAt < new Date()) {
+        throw new AppError(
+          'This reset link is invalid or has expired. Request a new one from the sign-in page.',
+          400,
+          'INVALID_RESET_TOKEN',
+        );
+      }
+
+      const user = await authRepo.findById(row.userId);
+      if (!user?.passwordHash) {
+        throw new AppError(
+          'This reset link is invalid or has expired. Request a new one from the sign-in page.',
+          400,
+          'INVALID_RESET_TOKEN',
+        );
+      }
+
+      const newHash = await hashPassword(newPassword);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: row.userId },
+          data: { passwordHash: newHash },
+        });
+        await tx.passwordResetToken.update({
+          where: { id: row.id },
+          data: { usedAt: new Date() },
+        });
+        await tx.passwordResetToken.updateMany({
+          where: { userId: row.userId, usedAt: null, id: { not: row.id } },
+          data: { usedAt: new Date() },
+        });
+        await tx.trustedDevice.deleteMany({ where: { userId: row.userId } });
+        await tx.emailLoginChallenge.updateMany({
+          where: { userId: row.userId, consumedAt: null },
+          data: { consumedAt: new Date() },
+        });
+      });
+
+      await auditService?.log({
+        userId: row.userId,
+        action: 'PASSWORD_RESET_COMPLETED',
+        resourceType: 'User',
+        resourceId: row.userId,
+      });
     },
   };
 }
