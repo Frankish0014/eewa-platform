@@ -6,6 +6,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
+    "dev:all": "concurrently -n api,web -c blue,green \"npm run dev\" \"npm run dev --prefix frontend\"",
     "prepare": "node scripts/run-prepare.cjs",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
@@ -29,7 +30,7 @@
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.0",
     "nodemailer": "^8.0.3",
-    "prisma": "6.19.2",
+    "prisma": "^7.6.0",
     "winston": "^3.14.0",
     "zod": "^3.23.0"
   },
@@ -41,6 +42,7 @@
     "@types/node": "^20.0.0",
     "@types/nodemailer": "^7.0.11",
     "@types/supertest": "^7.2.0",
+    "concurrently": "^9.2.1",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.0",
     "typescript": "^5.0.0"

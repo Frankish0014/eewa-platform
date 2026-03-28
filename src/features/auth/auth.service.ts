@@ -12,10 +12,23 @@ import { hashPassword } from './auth.repository';
 import { generateDeviceToken, hashDeviceToken } from './device-token';
 import { config } from '../../config';
 import { logger } from '../../common/logger';
-import { UnauthorizedError, ConflictError } from '../../core/errors';
+import { AppError, UnauthorizedError, ConflictError } from '../../core/errors';
 
 const MAX_TRUSTED_DEVICES = 10;
 const OTP_BCRYPT_COST = 10;
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function appBaseUrl(): string {
+  const u = config.PUBLIC_APP_URL?.trim() || config.CORS_ORIGIN?.trim() || '';
+  return u.replace(/\/$/, '');
+}
 
 export type LoginResult =
   | { accessToken: string; refreshToken: string; expiresIn: number; deviceToken: string }
@@ -128,6 +141,44 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       await prisma.trustedDevice.create({
         data: { userId: user.id, tokenHash },
       });
+
+      const base = appBaseUrl();
+      const roleLabel = user.role.replace(/([A-Z])/g, ' $1').trim();
+      const welcomeText = [
+        `Hi ${input.firstName},`,
+        '',
+        'Welcome to EEWA — your account was created successfully.',
+        '',
+        `Role: ${roleLabel}`,
+        '',
+        base
+          ? `Sign in anytime at: ${base}`
+          : 'You can sign in with the email and password you used to register.',
+        '',
+        'If you did not create this account, contact support.', 
+        'through our admin email at f.ishimwe@alustudent.com or the phone number +250782658368',
+        '',
+        '— The EEWA team',
+      ].join('\n');
+      const welcomeHtml = [
+        `<p>Hi ${escapeHtml(input.firstName)},</p>`,
+        '<p><strong>Welcome to EEWA</strong> — your account was created successfully.</p>',
+        `<p>Your account role: <strong>${escapeHtml(roleLabel)}</strong></p>`,
+        base ? `<p>Sign in: <a href="${escapeHtml(base)}">${escapeHtml(base)}</a></p>` : '<p>You can sign in with the email and password you registered.</p>',
+        '<p>If you did not create this account, contact support.</p>',
+        '<p>— The EEWA team</p>',
+      ].join('\n');
+
+      try {
+        await emailDelivery.sendMail(user.email, 'Welcome to EEWA — account created', welcomeText, welcomeHtml);
+      } catch (e) {
+        logger.warn('Welcome email failed (registration still succeeded)', {
+          userId: user.id,
+          email: user.email,
+          message: e instanceof Error ? e.message : String(e),
+        });
+      }
+
       return issueSession(tokenService, user, deviceToken);
     },
 
@@ -212,12 +263,31 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         '',
         `This code expires in ${ttlText}. If you did not try to sign in, ignore this email.`,
       ].join('\n');
+      const otpHtml = [
+        '<p>Use this code to finish signing in to EEWA:</p>',
+        `<p style="font-size:1.5rem;letter-spacing:0.25em;font-weight:bold;font-family:monospace;">${escapeHtml(code)}</p>`,
+        `<p>This code expires in ${escapeHtml(ttlText)}.</p>`,
+        '<p>If you did not try to sign in, you can ignore this email.</p>',
+      ].join('\n');
 
       if (config.NODE_ENV === 'development') {
         logger.info('Email login OTP (dev)', { to: user.email, code });
       }
 
-      await emailDelivery.sendMail(user.email, 'Your EEWA sign-in code', body);
+      try {
+        await emailDelivery.sendMail(user.email, 'Your EEWA sign-in code', body, otpHtml);
+      } catch (e) {
+        logger.error('Sign-in OTP email failed', {
+          userId: user.id,
+          email: user.email,
+          message: e instanceof Error ? e.message : String(e),
+        });
+        throw new AppError(
+          'Could not send your sign-in code by email. Try again later or contact support if this continues.',
+          503,
+          'EMAIL_SEND_FAILED',
+        );
+      }
 
       await auditService?.log({
         userId: user.id,

@@ -45,3 +45,4 @@ export const updateProfileSchema = z.object({
       }
     }),
 });
+

@@ -15,6 +15,7 @@ export type AuditAction =
   | 'PROJECT_EDIT'
   | 'PROJECT_DELETE'
   | 'PROFILE_EDIT'
+  | 'ACCOUNT_DELETE'
   | 'MENTOR_ASSIGN'
   | 'MENTOR_UNASSIGN'
   | 'OPPORTUNITY_CREATE'

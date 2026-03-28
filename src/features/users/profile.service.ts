@@ -4,7 +4,7 @@
 import * as bcrypt from 'bcryptjs';
 import type { PrismaClient } from '@prisma/client';
 import type { AuditService } from '../audit/audit.service';
-import { NotFoundError, UnauthorizedError } from '../../core/errors';
+import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from '../../core/errors';
 
 export interface Profile {
   userId: string;
@@ -126,6 +126,44 @@ export function createProfileService(prisma: PrismaClient, auditService?: AuditS
         select: profileSelect,
       });
       return toProfile(user);
+    },
+
+    /** Irreversible: verify password, block sole admin, remove user and cascaded data. */
+    async deleteAccount(userId: string, password: string): Promise<void> {
+      const row = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { passwordHash: true, role: true },
+      });
+      if (!row) throw new NotFoundError('User');
+      if (!row.passwordHash) {
+        throw new ForbiddenError(
+          'This account has no password on file and cannot be deleted in the app. Contact support if you need it removed.',
+        );
+      }
+      const ok = await bcrypt.compare(password.trim(), row.passwordHash);
+      if (!ok) throw new ForbiddenError('Incorrect password');
+
+      if (row.role === 'Admin') {
+        const adminCount = await prisma.user.count({ where: { role: 'Admin' } });
+        if (adminCount <= 1) {
+          throw new ConflictError('Cannot delete the only administrator. Promote another admin first.');
+        }
+      }
+
+      await prisma.opportunity.updateMany({
+        where: { verifiedById: userId },
+        data: { verifiedById: null, verifiedAt: null },
+      });
+
+      await auditService?.log({
+        userId,
+        action: 'ACCOUNT_DELETE',
+        resourceType: 'User',
+        resourceId: userId,
+        metadata: { role: row.role },
+      });
+
+      await prisma.user.delete({ where: { id: userId } });
     },
   };
 }

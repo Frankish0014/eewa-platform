@@ -65,7 +65,16 @@ async function request<T>(
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(url, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(url, { ...options, headers });
+  } catch {
+    const devHint =
+      import.meta.env.DEV
+        ? ' Start the API from the project root (npm run dev on port 3001). Or run both: npm run dev:all.'
+        : '';
+    throw new Error(`Cannot connect to the server.${devHint}`);
+  }
 
   if (res.status === 401) {
     const hasRefresh = !!localStorage.getItem('refreshToken');
@@ -92,14 +101,41 @@ async function request<T>(
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as {
       error?: string;
-      details?: { fieldErrors?: Record<string, string[] | undefined> };
+      details?: Record<string, unknown>;
     };
-    let msg = err.error ?? `HTTP ${res.status}`;
-    const fe = err.details?.fieldErrors;
-    if (fe && typeof fe === 'object') {
-      const first = Object.values(fe).flat().filter(Boolean)[0];
-      if (typeof first === 'string') msg = `${msg}: ${first}`;
-    }
+    /** Collect human-readable strings from API validation payloads (Zod flatten + our inline fieldErrors). */
+    const validationMessages = (details: unknown): string[] => {
+      if (!details || typeof details !== 'object') return [];
+      const d = details as Record<string, unknown>;
+      const out: string[] = [];
+      const push = (s: string) => {
+        const t = s.trim();
+        if (t) out.push(t);
+      };
+      const form = d.formErrors;
+      if (Array.isArray(form)) for (const x of form) if (typeof x === 'string') push(x);
+      const walk = (node: unknown): void => {
+        if (node == null) return;
+        if (typeof node === 'string') {
+          push(node);
+          return;
+        }
+        if (Array.isArray(node)) {
+          for (const x of node) {
+            if (typeof x === 'string') push(x);
+          }
+          return;
+        }
+        if (typeof node === 'object') {
+          for (const v of Object.values(node as Record<string, unknown>)) walk(v);
+        }
+      };
+      walk(d.fieldErrors);
+      return [...new Set(out)];
+    };
+    const msgs = validationMessages(err.details);
+    const msg =
+      msgs.length > 0 ? msgs.join(' ') : (err.error ?? `HTTP ${res.status}`);
     throw new Error(msg);
   }
   if (res.status === 204 || res.headers.get('content-length') === '0') {
@@ -247,6 +283,18 @@ export async function updateProfile(data: {
   currentPassword?: string;
 }): Promise<{ profile: Profile }> {
   return api.patch<{ profile: Profile }>('/api/profile', data);
+}
+
+/** Permanently deletes the account and related data (requires password + typing DELETE). */
+export async function deleteAccount(password: string, confirmation: string): Promise<void> {
+  const body = new URLSearchParams();
+  body.set('password', password);
+  body.set('confirmation', confirmation);
+  await request<void>('/api/account/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
 }
 
 export interface Sector {

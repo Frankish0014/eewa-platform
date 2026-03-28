@@ -5,6 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config';
 import { logger } from './common/logger';
+import { ValidationError } from './core/errors';
 import { errorHandler } from './middleware/errorHandler';
 import { authMiddleware } from './middleware/auth';
 import { rbacMiddleware } from './middleware/rbac';
@@ -135,8 +136,22 @@ const messagingController = createMessagingController(messagingService);
 
 const app = express();
 
-app.use(cors({ origin: config.CORS_ORIGIN, credentials: true }));
+/** Dev: allow both localhost and 127.0.0.1 for Vite + VITE_API_URL cross-origin. Always allow Authorization + JSON. */
+const corsOrigin =
+  config.NODE_ENV === 'development'
+    ? [...new Set([config.CORS_ORIGIN, 'http://localhost:5173', 'http://127.0.0.1:5173'])]
+    : config.CORS_ORIGIN;
+
+app.use(
+  cors({
+    origin: corsOrigin,
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  }),
+);
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use((req, _res, next) => {
   logger.info({ method: req.method, path: req.path });
   next();
@@ -208,6 +223,45 @@ app.patch('/api/profile', authMiddleware(tokenService), validate(updateProfileSc
       resourceId: req.user!.userId,
     });
     res.json({ profile });
+  } catch (e) {
+    next(e);
+  }
+});
+/** Read first non-empty string for any of the given JSON/urlencoded keys (handles proxy/body quirks). */
+function firstFormString(body: unknown, keys: string[]): string {
+  if (!body || typeof body !== 'object') return '';
+  const o = body as Record<string, unknown>;
+  for (const k of keys) {
+    const v = o[k];
+    if (typeof v === 'string') return v.trim();
+  }
+  return '';
+}
+
+// Account delete: accept JSON or urlencoded (frontend uses urlencoded for maximum reliability).
+app.post('/api/account/delete', authMiddleware(tokenService), async (req, res, next) => {
+  try {
+    const body = req.body as Record<string, unknown> | undefined;
+    const password = firstFormString(body, ['password', 'delete-password']);
+    const confirmation = firstFormString(body, ['confirmation', 'delete-confirm']).toUpperCase();
+    if (!password) {
+      next(
+        new ValidationError('Validation failed', {
+          fieldErrors: { password: ['Password is required'] },
+        }),
+      );
+      return;
+    }
+    if (confirmation !== 'DELETE') {
+      next(
+        new ValidationError('Validation failed', {
+          fieldErrors: { confirmation: ['Type the word DELETE to confirm (any letter casing is ok)'] },
+        }),
+      );
+      return;
+    }
+    await profileService.deleteAccount(req.user!.userId, password);
+    res.status(204).send();
   } catch (e) {
     next(e);
   }

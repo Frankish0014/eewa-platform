@@ -76,6 +76,13 @@ export default function Layout() {
               Profile
             </Link>
             <Link
+              to="/settings"
+              className={location.pathname === '/settings' ? styles.active : ''}
+              onClick={() => setMobileNavOpen(false)}
+            >
+              Settings
+            </Link>
+            <Link
               to="/notifications"
               className={location.pathname === '/notifications' ? styles.active : ''}
               onClick={() => setMobileNavOpen(false)}

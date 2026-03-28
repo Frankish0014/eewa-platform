@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { getProfile, updateProfile, type Profile } from '../api/client';
 import ProfileForm from '../components/ProfileForm';
 import styles from './Dashboard.module.css';
@@ -93,7 +94,10 @@ export default function ProfilePage() {
     <div>
       <div className={profileStyles.header}>
         <h1 className={styles.pageTitle}>Profile</h1>
-        <p className={profileStyles.subtitle}>Manage your account information</p>
+        <p className={profileStyles.subtitle}>
+          Manage your account information —{' '}
+          <Link to="/settings">theme &amp; delete account in Settings</Link>
+        </p>
       </div>
 
       {error && <div className={profileStyles.errorBanner}>{error}</div>}

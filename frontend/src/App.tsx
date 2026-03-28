@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
+import Settings from './pages/Settings';
 import Projects from './pages/Projects';
 import AdminOpportunities from './pages/AdminOpportunities';
 import AdminUsers from './pages/AdminUsers';
@@ -40,6 +41,7 @@ export default function App() {
       >
         <Route index element={<Dashboard />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="settings" element={<Settings />} />
         <Route path="projects" element={<Projects />} />
         <Route path="mentors" element={<FindMentor />} />
         <Route path="mentor/profile" element={<MentorProfile />} />

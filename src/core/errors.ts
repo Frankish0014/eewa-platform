@@ -9,7 +9,8 @@ export class AppError extends Error {
   ) {
     super(message);
     this.name = 'AppError';
-    Object.setPrototypeOf(this, AppError.prototype);
+    // Preserve subclass prototype (e.g. ValidationError). AppError.prototype breaks instanceof downstream.
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
