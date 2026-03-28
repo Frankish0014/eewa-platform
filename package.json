@@ -30,7 +30,7 @@
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.0",
     "nodemailer": "^8.0.3",
-    "prisma": "^7.6.0",
+    "prisma": "6.19.2",
     "winston": "^3.14.0",
     "zod": "^3.23.0"
   },
