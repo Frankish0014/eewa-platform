@@ -1,8 +1,37 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useAuth } from './AuthContext';
 
-const STORAGE_KEY = 'eewa_theme';
+const LEGACY_STORAGE_KEY = 'eewa_theme';
 
 export type ThemePreference = 'light' | 'dark';
+
+function themeKeyForUser(userId: string | null): string {
+  return `eewa_theme:${userId ?? 'guest'}`;
+}
+
+function readStoredTheme(userId: string | null): ThemePreference {
+  try {
+    const key = themeKeyForUser(userId);
+    const s = localStorage.getItem(key);
+    if (s === 'dark' || s === 'light') return s;
+    // Old builds used a single key for everyone — only migrate that into the logged-out slot so
+    // each signed-in account keeps its own preference without inheriting one global choice.
+    if (userId === null) {
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy === 'dark' || legacy === 'light') {
+        localStorage.setItem(key, legacy);
+        return legacy;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return 'light';
+}
+
+function applyDataTheme(theme: ThemePreference) {
+  document.documentElement.setAttribute('data-theme', theme);
+}
 
 type ThemeContextValue = {
   theme: ThemePreference;
@@ -11,28 +40,36 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function applyToDocument(theme: ThemePreference) {
-  document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem(STORAGE_KEY, theme);
-}
-
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemePreference>(() => {
-    try {
-      const s = localStorage.getItem(STORAGE_KEY);
-      return s === 'dark' ? 'dark' : 'light';
-    } catch {
-      return 'light';
-    }
-  });
+  const { user, loading } = useAuth();
+  const userId = user?.userId ?? null;
+
+  const [theme, setThemeState] = useState<ThemePreference>(() => readStoredTheme(null));
+
+  // Load the correct slot when we know who is signed in (each account has its own preference).
+  useEffect(() => {
+    if (loading) return;
+    const next = readStoredTheme(userId);
+    setThemeState(next);
+    applyDataTheme(next);
+  }, [loading, userId]);
 
   useEffect(() => {
-    applyToDocument(theme);
+    applyDataTheme(theme);
   }, [theme]);
 
-  const setTheme = useCallback((t: ThemePreference) => {
-    setThemeState(t);
-  }, []);
+  const setTheme = useCallback(
+    (t: ThemePreference) => {
+      setThemeState(t);
+      if (loading) return;
+      try {
+        localStorage.setItem(themeKeyForUser(userId), t);
+      } catch {
+        /* ignore */
+      }
+    },
+    [loading, userId],
+  );
 
   const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme]);
 

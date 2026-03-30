@@ -33,12 +33,13 @@ export const updateProfileSchema = z.object({
       currentPassword: z.string().optional(),
     })
     .superRefine((data, ctx) => {
-      if (data.emailSignInOtpEnabled !== undefined) {
+      // Turning ON requires password; turning OFF does not (user is already authenticated).
+      if (data.emailSignInOtpEnabled === true) {
         const pw = data.currentPassword?.trim() ?? '';
         if (pw.length === 0) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: 'Current password is required to change email sign-in verification',
+            message: 'Current password is required to turn on email sign-in codes',
             path: ['currentPassword'],
           });
         }

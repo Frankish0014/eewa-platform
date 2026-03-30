@@ -313,8 +313,10 @@ export interface Profile {
   firstName: string;
   lastName: string;
   skills: string | null;
-  /** When true, new browsers/devices require email code after password. */
+  /** When true, new browsers/devices require email code after password (only if server allows it). */
   emailSignInOtpEnabled: boolean;
+  /** False = server will not send sign-in codes; toggle is disabled until admin enables the feature. */
+  emailSignInOtpServerEnabled: boolean;
   institutionName?: string;
   institutionCountry?: string;
   createdAt: string;

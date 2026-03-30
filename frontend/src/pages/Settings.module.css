@@ -121,3 +121,58 @@
   font-size: 0.875rem;
   color: var(--error);
 }
+
+.otpCard {
+  margin-top: 1.25rem;
+  padding: 1rem 1.125rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent);
+  background: var(--accent-muted);
+}
+
+.otpStatus {
+  margin: 0 0 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.otpTurnOffBtn {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.otpTurnOffBtn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+
+.otpTurnOffBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.otpSuccess {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.otpErr {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  color: var(--error);
+}
+
+.otpOffNote {
+  margin: 1rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}

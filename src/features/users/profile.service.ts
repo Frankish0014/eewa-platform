@@ -5,6 +5,7 @@ import * as bcrypt from 'bcryptjs';
 import type { PrismaClient } from '@prisma/client';
 import type { AuditService } from '../audit/audit.service';
 import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from '../../core/errors';
+import { config } from '../../config';
 
 export interface Profile {
   userId: string;
@@ -14,6 +15,8 @@ export interface Profile {
   lastName: string;
   skills: string | null;
   emailSignInOtpEnabled: boolean;
+  /** Deployment-wide: when false, sign-in email codes are not sent (login ignores OTP until this is true). */
+  emailSignInOtpServerEnabled: boolean;
   institutionName?: string;
   institutionCountry?: string;
   createdAt: string;
@@ -46,6 +49,7 @@ function toProfile(user: {
     lastName: user.lastName,
     skills: user.skills ?? null,
     emailSignInOtpEnabled: user.emailSignInOtpEnabled,
+    emailSignInOtpServerEnabled: config.EMAIL_SIGN_IN_OTP_ENABLED,
     ...(user.institution && {
       institutionName: user.institution.name,
       institutionCountry: user.institution.country,
@@ -90,16 +94,22 @@ export function createProfileService(prisma: PrismaClient, auditService?: AuditS
       if (input.skills !== undefined) data.skills = input.skills;
 
       if (input.emailSignInOtpEnabled !== undefined) {
-        const plain = input.currentPassword?.trim() ?? '';
-        if (!plain) {
-          throw new UnauthorizedError('Current password is required to change email sign-in verification');
-        }
-        const row = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { passwordHash: true, emailSignInOtpEnabled: true },
-        });
-        if (!row?.passwordHash || !(await bcrypt.compare(plain, row.passwordHash))) {
-          throw new UnauthorizedError('Incorrect password');
+        if (input.emailSignInOtpEnabled) {
+          const plain = input.currentPassword?.trim() ?? '';
+          if (!plain) {
+            throw new UnauthorizedError('Current password is required to turn on email sign-in codes');
+          }
+          const row = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { passwordHash: true, emailSignInOtpEnabled: true },
+          });
+          if (!row?.passwordHash || !(await bcrypt.compare(plain, row.passwordHash))) {
+            throw new UnauthorizedError('Incorrect password');
+          }
+          // New sign-in policy: existing “trusted” browsers must prove email once too.
+          if (!row.emailSignInOtpEnabled) {
+            await prisma.trustedDevice.deleteMany({ where: { userId } });
+          }
         }
         data.emailSignInOtpEnabled = input.emailSignInOtpEnabled;
         await auditService?.log({

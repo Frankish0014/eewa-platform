@@ -151,6 +151,21 @@
   border-top: 1px solid var(--border);
 }
 
+.securityHint {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/** Matches Settings — informational, not an error when the feature is simply unavailable. */
+.signInSecurityInfo {
+  margin: 0.75rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
 .securityLabel {
   display: block;
   font-size: 0.875rem;

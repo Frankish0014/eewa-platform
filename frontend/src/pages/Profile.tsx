@@ -36,6 +36,10 @@ export default function ProfilePage() {
   const otpSettingDirty =
     profile != null && otpEnabledDraft !== profile.emailSignInOtpEnabled;
 
+  /** Turning on requires current password; turning off does not. */
+  const otpTurningOn =
+    Boolean(profile) && otpSettingDirty && otpEnabledDraft && !profile!.emailSignInOtpEnabled;
+
   const handleSaveSignInSecurity = async () => {
     if (!profile || !otpSettingDirty) return;
     setSecuritySubmitting(true);
@@ -43,7 +47,7 @@ export default function ProfilePage() {
     try {
       const { profile: updated } = await updateProfile({
         emailSignInOtpEnabled: otpEnabledDraft,
-        currentPassword: otpPassword,
+        ...(otpTurningOn ? { currentPassword: otpPassword } : {}),
       });
       setProfile(updated);
       setOtpPassword('');
@@ -89,6 +93,9 @@ export default function ProfilePage() {
       </div>
     );
   }
+
+  /** Deployment flag only — each user’s own choice is `emailSignInOtpEnabled`. */
+  const serverOtpExplicitlyOff = profile.emailSignInOtpServerEnabled === false;
 
   return (
     <div>
@@ -147,10 +154,15 @@ export default function ProfilePage() {
           Sign-in security
         </h3>
         <p className={styles.pageSubtitle} style={{ marginTop: '0.5rem' }}>
-          Turn on email verification if you want a one-time code sent to your address when you sign in from a new
-          browser or device (after your password). While this is off, a correct password is enough on a new device.
-          In development, the code is also printed in the API logs when SMTP is not configured.
+          Your choice here applies only to <strong>your</strong> account. You can turn email codes off anytime without
+          your password; turning them on requires your current password.
         </p>
+        {serverOtpExplicitlyOff && (
+          <p className={profileStyles.signInSecurityInfo} role="status">
+            This deployment is not sending sign-in email codes yet. You can still set your preference below — when an
+            administrator enables the feature, it will follow what you save for your account.
+          </p>
+        )}
         <label className={profileStyles.checkboxRow}>
           <input
             type="checkbox"
@@ -158,29 +170,35 @@ export default function ProfilePage() {
             onChange={(e) => setOtpEnabledDraft(e.target.checked)}
             disabled={securitySubmitting}
           />
-          <span>Require email code on new sign-ins</span>
+          <span>Require email code on new sign-ins (for my account)</span>
         </label>
         {otpSettingDirty && (
           <div className={profileStyles.securityFields}>
-            <label className={profileStyles.securityLabel}>
-              Current password (required to confirm)
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={otpPassword}
-                onChange={(e) => setOtpPassword(e.target.value)}
-                disabled={securitySubmitting}
-                className={profileStyles.securityInput}
-              />
-            </label>
+            {otpTurningOn ? (
+              <label className={profileStyles.securityLabel}>
+                Current password (required to turn this on)
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={otpPassword}
+                  onChange={(e) => setOtpPassword(e.target.value)}
+                  disabled={securitySubmitting}
+                  className={profileStyles.securityInput}
+                />
+              </label>
+            ) : (
+              <p className={profileStyles.securityHint}>
+                Turning off email codes does not require your password — you’re already signed in.
+              </p>
+            )}
             <div className={profileStyles.securityActions}>
               <button
                 type="button"
                 className={styles.editBtn}
-                disabled={securitySubmitting || !otpPassword.trim()}
+                disabled={securitySubmitting || (otpTurningOn && !otpPassword.trim())}
                 onClick={() => void handleSaveSignInSecurity()}
               >
-                {securitySubmitting ? 'Saving…' : 'Save sign-in setting'}
+                {securitySubmitting ? 'Saving…' : otpEnabledDraft ? 'Save — turn on email codes' : 'Save — turn off email codes'}
               </button>
               <button
                 type="button"

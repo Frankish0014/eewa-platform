@@ -260,7 +260,9 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         }
       }
 
-      if (!user.emailSignInOtpEnabled) {
+      // Only the account’s preference matters here. (Deployment SMTP / production checks happen before send.)
+      const signInOtpAllowed = user.emailSignInOtpEnabled;
+      if (!signInOtpAllowed) {
         const newDeviceToken = generateDeviceToken();
         const tokenHash = hashDeviceToken(newDeviceToken);
         await pruneTrustedDevicesIfNeeded(prisma, user.id);

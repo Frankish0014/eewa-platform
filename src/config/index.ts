@@ -30,6 +30,19 @@ const envSchema = z.object({
   JWT_EMAIL_OTP_PENDING_EXPIRES_IN: z.string().default('15m'),
   EMAIL_OTP_CODE_TTL_MINUTES: z.coerce.number().default(15),
   EMAIL_OTP_RESEND_SECONDS: z.coerce.number().default(60),
+  /**
+   * Shown in Profile/Settings as “email codes available on this site” and used for messaging.
+   * Sign-in OTP on new browsers is driven by each user’s Profile toggle; SMTP must work in production.
+   */
+  EMAIL_SIGN_IN_OTP_ENABLED: z.preprocess(
+    (val) => {
+      if (val === undefined || val === null || val === '') return false;
+      if (typeof val === 'boolean') return val;
+      const s = String(val).trim().toLowerCase();
+      return ['true', '1', 'yes', 'on'].includes(s);
+    },
+    z.boolean(),
+  ),
   PASSWORD_RESET_TOKEN_TTL_HOURS: z.coerce.number().default(1),
   PASSWORD_RESET_RESEND_SECONDS: z.coerce.number().default(60),
   ENCRYPTION_KEY: z.string().length(64), // 32 bytes hex for AES-256

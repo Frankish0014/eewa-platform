@@ -7,8 +7,9 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import './index.css';
 
 try {
-  const saved = localStorage.getItem('eewa_theme');
-  if (saved === 'dark') {
+  const guest = localStorage.getItem('eewa_theme:guest');
+  const legacy = localStorage.getItem('eewa_theme');
+  if (guest === 'dark' || legacy === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
   }
 } catch {
@@ -23,11 +24,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         v7_relativeSplatPath: true,
       }}
     >
-      <ThemeProvider>
-        <AuthProvider>
+      <AuthProvider>
+        <ThemeProvider>
           <App />
-        </AuthProvider>
-      </ThemeProvider>
+        </ThemeProvider>
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>
 );
