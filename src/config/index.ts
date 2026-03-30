@@ -20,6 +20,18 @@ function normalizeDatabaseUrlInEnv(): void {
 
 normalizeDatabaseUrlInEnv();
 
+/** Dashboard paste often adds spaces/newlines — treat empty as unset. */
+function optionalTrimmedString() {
+  return z.preprocess(
+    (val) => {
+      if (val === undefined || val === null) return undefined;
+      const s = String(val).replace(/\uFEFF/g, '').trim();
+      return s === '' ? undefined : s;
+    },
+    z.string().optional(),
+  );
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(3001),
@@ -52,22 +64,30 @@ const envSchema = z.object({
   /** Absolute or relative path to Vite `dist` (e.g. ./public in Docker). Empty = API-only. */
   STATIC_FILES_DIR: z.string().optional(),
   // Optional transactional email (opportunity verified, etc.)
-  SMTP_HOST: z.string().optional(),
+  SMTP_HOST: optionalTrimmedString(),
   SMTP_PORT: z.coerce.number().optional(),
   SMTP_SECURE: z.string().optional(),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASS: z.string().optional(),
+  SMTP_USER: optionalTrimmedString(),
+  SMTP_PASS: optionalTrimmedString(),
   /** Mailbox address (e.g. no-reply@yourdomain.com). Must be allowed by your SMTP provider / domain DNS (SPF, DKIM). */
-  SMTP_FROM: z.string().optional(),
+  SMTP_FROM: optionalTrimmedString(),
   /** Display name in the From header (default EEWA). */
-  SMTP_FROM_NAME: z.string().optional(),
+  SMTP_FROM_NAME: optionalTrimmedString(),
   /** Shown in transactional emails for user support (optional). */
-  SUPPORT_EMAIL: z.string().optional(),
+  SUPPORT_EMAIL: optionalTrimmedString(),
   /** Public site URL (https://…) for email footers — same as users’ browser origin when possible */
-  PUBLIC_APP_URL: z.string().optional(),
+  PUBLIC_APP_URL: optionalTrimmedString(),
+  /** Prefer over Gmail SMTP on PaaS (Render, etc.) — https://resend.com — requires verified domain `SMTP_FROM`. */
+  RESEND_API_KEY: optionalTrimmedString(),
 });
 
 export type Env = z.infer<typeof envSchema>;
+
+/** True when sign-in OTP / transactional mail can be sent (Resend API or full SMTP). */
+export function isTransactionalEmailConfigured(env: Env): boolean {
+  if (env.RESEND_API_KEY?.trim() && env.SMTP_FROM?.trim()) return true;
+  return Boolean(env.SMTP_HOST?.trim() && env.SMTP_USER?.trim() && env.SMTP_PASS?.trim());
+}
 
 /**
  * Default From address when `SMTP_HOST` is set but `SMTP_FROM` is omitted.

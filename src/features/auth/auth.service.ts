@@ -7,10 +7,10 @@ import type { PrismaClient } from '@prisma/client';
 import type { AuthRepository } from './auth.repository';
 import type { TokenService } from './token.service';
 import type { AuditService } from '../audit/audit.service';
-import type { EmailDelivery } from '../notifications/email-delivery';
+import { sendMailWithRetry, type EmailDelivery } from '../notifications/email-delivery';
 import { hashPassword } from './auth.repository';
 import { generateDeviceToken, hashDeviceToken } from './device-token';
-import { config, resolveSmtpMailbox } from '../../config';
+import { config, isTransactionalEmailConfigured, resolveSmtpMailbox } from '../../config';
 import { logger } from '../../common/logger';
 import { AppError, UnauthorizedError, ConflictError } from '../../core/errors';
 
@@ -217,14 +217,31 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         '</div></div></div>',
       ].join('');
 
-      try {
-        await emailDelivery.sendMail(user.email, 'Welcome to EEWA — your account is active', welcomeText, welcomeHtml);
-      } catch (e) {
-        logger.warn('Welcome email failed (registration still succeeded)', {
-          userId: user.id,
-          email: user.email,
-          message: e instanceof Error ? e.message : String(e),
-        });
+      if (emailDelivery.isConfigured()) {
+        try {
+          await sendMailWithRetry(
+            emailDelivery,
+            user.email,
+            'Welcome to EEWA — your account is active',
+            welcomeText,
+            welcomeHtml,
+            { attempts: 3, label: 'Welcome email' },
+          );
+        } catch (e) {
+          const logFn = config.NODE_ENV === 'production' ? logger.error : logger.warn;
+          logFn('Welcome email failed after retries (registration still succeeded)', {
+            userId: user.id,
+            email: user.email,
+            message: e instanceof Error ? e.message : String(e),
+          });
+        }
+      } else if (config.NODE_ENV === 'production') {
+        logger.error(
+          'Welcome email not sent: outbound email not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS (and SMTP_FROM for Gmail) on the server.',
+          { userId: user.id, email: user.email },
+        );
+      } else {
+        logger.warn('Welcome email skipped: SMTP not configured locally', { userId: user.id });
       }
 
       return issueSession(tokenService, user, deviceToken);
@@ -278,20 +295,9 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         return issueSession(tokenService, user, newDeviceToken);
       }
 
-      const resendAfterMs = config.EMAIL_OTP_RESEND_SECONDS * 1000;
-      const recentOpen = await prisma.emailLoginChallenge.findFirst({
-        where: {
-          userId: user.id,
-          consumedAt: null,
-          expiresAt: { gt: new Date() },
-          createdAt: { gt: new Date(Date.now() - resendAfterMs) },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (recentOpen) {
-        const emailOtpToken = tokenService.issueEmailOtpPendingToken(user.id, recentOpen.id);
-        return { requiresEmailOtp: true, emailOtpToken };
-      }
+      // Always issue a fresh code + send mail on each password step. A previous version returned
+      // requiresEmailOtp without re-sending when a challenge existed within EMAIL_OTP_RESEND_SECONDS,
+      // which stranded users (OTP screen but no email).
 
       await prisma.emailLoginChallenge.updateMany({
         where: { userId: user.id, consumedAt: null },
@@ -307,12 +313,25 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         data: { userId: user.id, codeHash, expiresAt },
       });
 
-      if (config.NODE_ENV === 'production' && !config.SMTP_HOST?.trim()) {
+      const mailReady = isTransactionalEmailConfigured(config);
+
+      if (!mailReady) {
+        if (config.NODE_ENV === 'development') {
+          logger.info('Email login OTP (dev, SMTP not configured — use code below)', { to: user.email, code });
+          await auditService?.log({
+            userId: user.id,
+            action: 'LOGIN_EMAIL_OTP_SENT',
+            resourceType: 'SESSION',
+            resourceId: null,
+          });
+          const emailOtpToken = tokenService.issueEmailOtpPendingToken(user.id, challenge.id);
+          return { requiresEmailOtp: true, emailOtpToken };
+        }
         await prisma.emailLoginChallenge.delete({ where: { id: challenge.id } }).catch(() => {
           /* best-effort */
         });
         throw new AppError(
-          'Sign-in codes are not being sent because email (SMTP) is not configured on this server. Contact your administrator.',
+          'Sign-in codes cannot be sent: configure Resend (RESEND_API_KEY + SMTP_FROM) or SMTP (HOST, USER, PASS) on the server. Contact your administrator.',
           503,
           'EMAIL_NOT_CONFIGURED',
         );
@@ -521,8 +540,32 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         logger.info('Password reset link (dev)', { to: user.email, resetUrl });
       }
 
+      if (!emailDelivery.isConfigured()) {
+        if (config.NODE_ENV === 'development') {
+          logger.info('Password reset email skipped (SMTP not configured); use link above if testing locally', {
+            to: user.email,
+          });
+          return;
+        }
+        await prisma.passwordResetToken.delete({ where: { id: resetRow.id } }).catch(() => {
+          /* best-effort */
+        });
+        throw new AppError(
+          'Password reset email cannot be sent because email is not configured on this server. Contact your administrator.',
+          503,
+          'EMAIL_NOT_CONFIGURED',
+        );
+      }
+
       try {
-        await emailDelivery.sendMail(user.email, 'Reset your EEWA password', bodyText, bodyHtml);
+        await sendMailWithRetry(
+          emailDelivery,
+          user.email,
+          'Reset your EEWA password',
+          bodyText,
+          bodyHtml,
+          { attempts: 3, label: 'Password reset email' },
+        );
       } catch (e) {
         await prisma.passwordResetToken.delete({ where: { id: resetRow.id } }).catch(() => {
           /* best-effort — avoid leaving a usable token if email never arrived */
