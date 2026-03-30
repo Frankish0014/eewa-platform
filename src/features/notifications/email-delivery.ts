@@ -236,9 +236,23 @@ export function createEmailDelivery(env: Env): EmailDelivery {
   const useGmailAppPassword = isGmailSmtpHost(host) && !!user && !!pass;
   const port = env.SMTP_PORT ?? 587;
   const secure = env.SMTP_SECURE === 'true' || env.SMTP_SECURE === '1';
+  const useStartTls = !secure && port === 587;
 
   /** `family` is a Node net.connect option (IPv4); omitted from @types/nodemailer but honored at runtime. */
   type SmtpOpts = SMTPTransport.Options & { family?: number };
+
+  /** Port 587 STARTTLS (Brevo, Mailgun, Postmark, etc.): TLS upgrade + IPv4 + SNI — reliable from PaaS. */
+  const relayTweaks =
+    !useGmailAppPassword && useStartTls
+      ? ({
+          requireTLS: true,
+          family: 4,
+          tls: {
+            minVersion: 'TLSv1.2' as const,
+            servername: host.trim(),
+          },
+        } as Partial<SmtpOpts>)
+      : {};
 
   const transporter = useGmailAppPassword
     ? nodemailer.createTransport({
@@ -253,7 +267,15 @@ export function createEmailDelivery(env: Env): EmailDelivery {
         secure,
         ...timeoutOpts,
         ...auth,
+        ...relayTweaks,
       } as SmtpOpts);
+
+  if (!useGmailAppPassword && useStartTls) {
+    logger.info('SMTP STARTTLS relay', {
+      host: host.includes('.') ? `${host.split('.')[0].slice(0, 6)}…${host.slice(host.indexOf('.'))}` : host,
+      port,
+    });
+  }
 
   const smtpConfigured = Boolean(user && pass);
 

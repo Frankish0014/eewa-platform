@@ -355,7 +355,14 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       }
 
       try {
-        await emailDelivery.sendMail(user.email, 'Your EEWA sign-in code', body, otpHtml);
+        await sendMailWithRetry(
+          emailDelivery,
+          user.email,
+          'Your EEWA sign-in code',
+          body,
+          otpHtml,
+          { attempts: 3, label: 'Sign-in OTP email' },
+        );
       } catch (e) {
         logger.error('Sign-in OTP email failed', {
           userId: user.id,
