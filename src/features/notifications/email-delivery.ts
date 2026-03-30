@@ -1,5 +1,7 @@
 /**
- * Transactional email — Resend API (recommended on PaaS) or SMTP (incl. Gmail).
+ * Transactional email — default path is **Gmail SMTP** (App Password + smtp.gmail.com).
+ * Optional: `RESEND_API_KEY` + `SMTP_FROM` uses the Resend HTTP API. Other providers use generic SMTP
+ * (port 587 STARTTLS gets relay-friendly TLS/IPv4 options).
  */
 import nodemailer from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';

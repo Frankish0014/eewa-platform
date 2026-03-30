@@ -1,6 +1,7 @@
 # Render Blueprint — https://render.com/docs/blueprint-spec
 # After first deploy: set secrets in the Render dashboard (DATABASE_URL, JWT_SECRET, ENCRYPTION_KEY, SMTP_*, etc.).
-# CORS_ORIGIN must equal your public site URL exactly (e.g. https://eewa.onrender.com).
+# CORS_ORIGIN and PUBLIC_APP_URL must match the browser URL (e.g. https://your-app.onrender.com).
+# Gmail SMTP: SMTP_HOST=smtp.gmail.com, PORT=587, SECURE=false, USER/FROM=same Gmail, PASS=Google App Password. Omit RESEND_API_KEY if not using Resend.
 
 version: "1"
 services:

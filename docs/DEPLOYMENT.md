@@ -17,8 +17,8 @@ Render, Railway, Fly, and most hosts deploy from a repo. ; using the host’s **
 | `JWT_SECRET` | Random string, ≥32 characters. |
 | `ENCRYPTION_KEY` | Exactly **64** hex characters (32 bytes). Same command as in Docker Compose section below. |
 | `CORS_ORIGIN` | **Exact** browser origin users type — e.g. `https://eewa-platform.onrender.com` |
-| `SMTP_*` | **Setting in production** for real mail: **welcome** on registration, **sign-in OTP** (when users enable it on their profile), and opportunity alerts. Without SMTP, the API logs a warning and only logs message previews. |
-| `SMTP_FROM` | Sender address (e.g. `no-reply@yourdomain.com`). Must match what your provider allows (SPF/DKIM for that domain). Personal Gmail SMTP usually sends **as that Gmail address**, not as an arbitrary domain, unless you use Workspace + verified domain. |
+| `SMTP_*` | **Gmail (default):** `SMTP_HOST=smtp.gmail.com`, port `587`, `SMTP_SECURE=false`, `SMTP_USER` and `SMTP_FROM` = same personal Gmail, `SMTP_PASS` = Google **App password** (2FA required). Same variables in dev (`.env`) and production (Render). Powers: welcome, sign-in OTP, password reset, opportunity mail. Without SMTP, dev logs previews; production OTP returns errors if mail cannot be sent. |
+| `SMTP_FROM` | Must match a sender your provider allows. **Personal Gmail:** same address as `SMTP_USER`. **Workspace / other ESP:** use a verified domain or sender per their docs. |
 | `SMTP_FROM_NAME` | Optional. Display name in the From header (defaults to `EEWA`). |
 | `SUPPORT_EMAIL` | Optional. Included in the welcome email so users know how to reach a human. |
 | `PUBLIC_APP_URL` | Optional; public `https://eewa-platform.onrender.com` |
