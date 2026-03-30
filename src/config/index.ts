@@ -79,3 +79,29 @@ function loadConfig(): Env {
 }
 
 export const config = loadConfig();
+
+/** Origin header values are scheme + host + port, no path or trailing slash. */
+function normalizeBrowserOrigin(raw: string): string {
+  let o = raw.replace(/^\uFEFF/u, '').trim().replace(/\/$/, '');
+  if ((o.startsWith('"') && o.endsWith('"')) || (o.startsWith("'") && o.endsWith("'"))) {
+    o = o.slice(1, -1).trim().replace(/\/$/, '');
+  }
+  return o;
+}
+
+/**
+ * Allowed values for the `Origin` header (and CORS checks). Merges `CORS_ORIGIN` (comma- or
+ * semicolon-separated) with `PUBLIC_APP_URL` so production still works if only one of them is set
+ * correctly on Render.
+ */
+export function getCorsOriginAllowlist(): string[] {
+  const parts = config.CORS_ORIGIN.split(/[,;]\s*/).map(normalizeBrowserOrigin).filter(Boolean);
+  const pub = config.PUBLIC_APP_URL?.trim() ? normalizeBrowserOrigin(config.PUBLIC_APP_URL) : '';
+  const set = new Set<string>(parts);
+  if (pub) set.add(pub);
+  if (config.NODE_ENV === 'development') {
+    set.add('http://localhost:5173');
+    set.add('http://127.0.0.1:5173');
+  }
+  return [...set];
+}

@@ -3,7 +3,7 @@
  */
 import express from 'express';
 import cors from 'cors';
-import { config } from './config';
+import { config, getCorsOriginAllowlist } from './config';
 import { logger } from './common/logger';
 import { ValidationError } from './core/errors';
 import { errorHandler } from './middleware/errorHandler';
@@ -138,15 +138,32 @@ const messagingController = createMessagingController(messagingService);
 
 const app = express();
 
-/** Dev: allow both localhost and 127.0.0.1 for Vite + VITE_API_URL cross-origin. Always allow Authorization + JSON. */
-const corsOrigin =
-  config.NODE_ENV === 'development'
-    ? [...new Set([config.CORS_ORIGIN, 'http://localhost:5173', 'http://127.0.0.1:5173'])]
-    : config.CORS_ORIGIN;
+/** Merges CORS_ORIGIN + PUBLIC_APP_URL; supports comma-separated origins. */
+const corsAllowlist = getCorsOriginAllowlist();
+
+if (config.NODE_ENV === 'production' && corsAllowlist.length > 0) {
+  const onlyLoopback = corsAllowlist.every((o) => /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?$/i.test(o));
+  if (onlyLoopback) {
+    logger.error(
+      'EEWA: CORS allowlist is only localhost — set CORS_ORIGIN and/or PUBLIC_APP_URL to your live https:// URL on the host (e.g. Render). Otherwise some browsers or hybrid setups block API calls (slow login, "Load failed").',
+    );
+  }
+}
 
 app.use(
   cors({
-    origin: corsOrigin,
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (corsAllowlist.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      logger.warn('CORS blocked request', { origin, allowlist: corsAllowlist });
+      callback(null, false);
+    },
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

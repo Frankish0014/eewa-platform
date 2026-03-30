@@ -3,6 +3,27 @@
  */
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
+/** Avoid hanging indefinitely on stalled TLS/SMTP-proxy/network (Safari often reports "Load failed"). */
+const FETCH_TIMEOUT_MS = 90_000;
+
+function isAbortOrTimeoutError(e: unknown): boolean {
+  if (e instanceof DOMException && e.name === 'AbortError') return true;
+  if (e instanceof Error) {
+    if (e.name === 'AbortError') return true;
+    if (/abort|timed?\s*out/i.test(e.message)) return true;
+  }
+  return false;
+}
+
+function fetchWithTimeout(input: string, init: RequestInit = {}): Promise<Response> {
+  if (init.signal) {
+    return fetch(input, init);
+  }
+  const ctrl = new AbortController();
+  const id = window.setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  return fetch(input, { ...init, signal: ctrl.signal }).finally(() => window.clearTimeout(id));
+}
+
 function getToken(): string | null {
   return localStorage.getItem('accessToken');
 }
@@ -97,8 +118,13 @@ async function request<T>(
 
   let res: Response;
   try {
-    res = await fetch(url, { ...options, headers });
-  } catch {
+    res = await fetchWithTimeout(url, { ...options, headers });
+  } catch (e) {
+    if (isAbortOrTimeoutError(e)) {
+      throw new Error(
+        'The server took too long to respond or the connection was interrupted. Try again, or check your network.'
+      );
+    }
     const devHint =
       import.meta.env.DEV
         ? ' Start the API from the project root (npm run dev on port 3001). Or run both: npm run dev:all.'
@@ -181,11 +207,21 @@ export async function register(input: {
 
 async function publicPost<T>(path: string, body: unknown): Promise<T> {
   const url = apiUrl(path);
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    if (isAbortOrTimeoutError(e)) {
+      throw new Error(
+        'The server took too long to respond or the connection was interrupted. Try again, or check your network.'
+      );
+    }
+    throw e instanceof Error ? e : new Error('Request failed');
+  }
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as {
       error?: string;
@@ -239,7 +275,7 @@ export async function refreshToken(): Promise<string> {
   const run = (async () => {
     const refresh = localStorage.getItem('refreshToken');
     if (!refresh) throw new Error('No refresh token');
-    const res = await fetch(apiUrl('/api/auth/refresh'), {
+    const res = await fetchWithTimeout(apiUrl('/api/auth/refresh'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: refresh }),

@@ -305,6 +305,17 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         data: { userId: user.id, codeHash, expiresAt },
       });
 
+      if (config.NODE_ENV === 'production' && !config.SMTP_HOST?.trim()) {
+        await prisma.emailLoginChallenge.delete({ where: { id: challenge.id } }).catch(() => {
+          /* best-effort */
+        });
+        throw new AppError(
+          'Sign-in codes are not being sent because email (SMTP) is not configured on this server. Contact your administrator.',
+          503,
+          'EMAIL_NOT_CONFIGURED',
+        );
+      }
+
       const ttlText = `${config.EMAIL_OTP_CODE_TTL_MINUTES} minute(s)`;
       const body = [
         `Your EEWA sign-in code is: ${code}`,
