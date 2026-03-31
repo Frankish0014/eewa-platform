@@ -1,70 +1,146 @@
 # EEWA — Entrepreneur Empowerment Web Application
 
+Live demo: `https://youtu.be/eXHdib8EtVk`
+
 Platform for African student entrepreneurs: projects, milestones, mentor matching, opportunities, and secure messaging.
 
-**Hosting (public URL):** See **[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)** — Docker, Render, Neon Postgres, env vars (`DATABASE_URL`, `CORS_ORIGIN`, optional SMTP).
+**deployed app:** `https://eewa-platform.onrender.com` Note: the Link Loads for like 50 secs on render before it the actual page renders.
+
+**Google Doc** : `https://docs.google.com/document/d/1WDzGRM7Z3a1HwpOlcehUJAgxA0A7l5l9HHKoFAGEuUI/edit?usp=sharing`
+
+**Production deployment:** **[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)** — Docker, Render, Neon Postgres, `DATABASE_URL`, `CORS_ORIGIN`, optional SMTP (Gmail) future functionality to implement in production but already initiated in the Development.
+
+---
 
 ## Prerequisites
 
 - **Node.js** 18+
-- **PostgreSQL** (local or Docker)
+- **PostgreSQL** 14+ (local install or Docker — see DEPLOYMENT for Docker Compose)
+- **Git**
 
-## Quick start
+---
 
-### 1. Backend (API)
+## Full local setup (follow in order)
+
+Use these steps on a clean machine so the API and frontend both work end to end.
+
+### Step 1 — Clone the repository
 
 ```bash
-# From project root
+git clone <YOUR_PUBLIC_GITHUB_REPO_URL>
+cd eewa-platform
+```
 
+### Step 2 — Create a PostgreSQL database
+
+Create an empty database (and user if needed). Your `DATABASE_URL` will look like:
+
+`postgresql://USER:PASSWORD@localhost:5432/eewa`
+
+### Step 3 — Backend environment (`.env`)
+
+1. From the **repository root**, copy the example file:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Windows PowerShell: `Copy-Item .env.example .env`
+
+2. Edit `.env` and set at minimum:
+
+   - **`DATABASE_URL`** — connection string from Step 2.
+   - **`JWT_SECRET`** — random string, **at least 32 characters**.
+   - **`ENCRYPTION_KEY`** — exactly **64 hex characters**. Generate with:
+
+     ```bash
+     node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+     ```
+
+   - **`CORS_ORIGIN`** — for local dev use `http://localhost:5173` (exact URL, no trailing slash).
+
+3. Optionally set **`NODE_ENV=development`** for local runs.
+
+4. **Email:** `SMTP_*` is optional for local dev; without it, some flows log email instead of sending. See `.env.example` and DEPLOYMENT.md.
+
+### Step 4 — Install backend dependencies and apply schema
+
+From the **repository root**:
+
+```bash
 npm install
 npx prisma generate
-# Choose one: sync schema
-npx prisma db push          # quick dev sync (no migration files)
-# or: npx prisma migrate dev  # if you use migrations from prisma/migrations
-
-npm run dev                 # API at http://localhost:3001 (or PORT in .env). Production: npm run build && npm start
 ```
 
-### 2. Frontend
+Then apply existing migrations (recommended for a fresh clone — no prompts):
 
 ```bash
-# From project root
+npx prisma migrate deploy
+```
+
+For active development you may use `npx prisma migrate dev` instead. For a quick schema sync **without** using migration files (dev only):
+
+```bash
+npx prisma db push
+```
+
+### Step 5 — Seed admin and baseline data
+
+```bash
+npm run db:seed
+```
+
+Default admin: **`admin@eewa.dev`** / **`AdminPassword1!`**.
+
+### Step 6 — Frontend install and API URL
+
+```bash
 cd frontend
 npm install
-npm run dev                 # App at http://localhost:5173
 ```
 
-### 3. Run both
+Create **`frontend/.env.development`**:
 
-**Easiest — one command** (from project root, after `npm install` here and in `frontend/`):
+```env
+VITE_API_URL=http://localhost:3001
+```
+
+(Match the root `PORT`, default **3001**.)
+
+### Step 7 — Run API and SPA
+
+From the **repository root**:
 
 ```bash
+cd ..
 npm run dev:all
 ```
 
-This starts the **API on :3001** and **Vite on :5173**. If you only run `cd frontend && npm run dev`, the UI will load but **`GET /api/me` will fail with connection refused** until the API is running.
+| Service   | URL |
+|-----------|-----|
+| Frontend  | http://localhost:5173 |
+| API health| http://localhost:3001/api/health |
 
-Alternatively, use **two terminals**:
+**Two-terminal alternative:** root `npm run dev` and, separately, `cd frontend && npm run dev`.
 
-| Terminal 1 (backend) | Terminal 2 (frontend) |
-|----------------------|------------------------|
-| `npm run dev`        | `cd frontend && npm run dev` |
+### Step 8 — Verify
 
-**Frontend:** http://localhost:5173  
-**API:** http://localhost:3001 (or your `PORT`)  
-**Health:** http://localhost:3001/api/health (or the port in your `.env`)
+1. Open the frontend URL and confirm pages load.  
+2. Open `/api/health` on the API port.  
+3. Log in with the seeded admin or register a new user.
 
-**Recommended:** `frontend/.env.development` sets `VITE_API_URL=http://localhost:3001` so the browser talks to the API **directly** (the Vite `/api` proxy can break some POST bodies, e.g. account delete). Restart `npm run dev` in `frontend/` after changing env. If you omit it, same-origin proxy is used.
+If only the frontend runs, the UI may appear but authenticated requests will fail until the API is running.
 
-First user (login)
+---
 
-Seed an admin user, then log in from the frontend:
+## Quick reference (after setup)
 
 ```bash
-npx prisma db seed
+npm run dev:all          # API + Vite from repo root
+npm run db:seed          # Re-run seed (admin + sectors)
 ```
 
-This creates **admin@eewa.dev** / **AdminPassword1!**. Use these credentials on the login page.
+Vite **`/api` proxy** can break some POST bodies; **prefer `VITE_API_URL=http://localhost:3001`** in `frontend/.env.development`.
 
 ## After backend code changes
 
